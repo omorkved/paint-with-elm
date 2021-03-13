@@ -1,4 +1,6 @@
 module Main exposing (main)
+-- elm make Paint.elm --output=elm.js
+-- hey Olivia click on the "app.html" one
 
 import Browser
 import Browser.Events exposing (onAnimationFrameDelta)
@@ -9,7 +11,23 @@ import Color
 import Html exposing (Html, div)
 import Html.Attributes exposing (style)
 
+{-- MODEL
+-- Define a rectangle to be the canvas? 
+Or maybe the canvas shouldn't be in the model cuz it doesnt ever update.
 
+-- List of paint strokes? 
+Whenever they add a paint stroke, it gets added to the list. 
+The entire List of paint strokes is rendered.
+
+--}
+
+
+{-- idea:
+    We can have multiple settings:
+ -- setting one "paint mode", onMouseDown paint wherever the cursor goes, stop on next Mouse Down.
+ -- setting two "splatter mode": onMouseDown, splatter a bit of paint as like a one-time thing
+
+--}
 type alias Model =
     { count : Float }
 
