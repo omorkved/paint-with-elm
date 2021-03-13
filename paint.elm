@@ -1,98 +1,96 @@
+module Main exposing (main)
 
 import Browser
-import Html exposing (Html)
-import Html.Attributes exposing (style)
-import Random exposing (Generator)
-import Time
-import Debug
-
-{-- If we want to use collage:
-import Collage exposing (circle, filled, uniform, Shape, Collage, shift)
-import Collage.Layout exposing (..)
-import Collage.Render exposing (svg, svgBox)
-import Collage.Text as Text exposing (Text, fromString, size, large, shape)
-import Color exposing (..)
---}
-
--- taken from Canvas docs
-import Canvas exposing (..)
-import Canvas.Settings exposing (..)
---import Color -- elm install avh4/elm-color
-import Html exposing (Html)
+import Browser.Events exposing (onAnimationFrameDelta)
+import Canvas exposing (rect, shapes)
+import Canvas.Settings exposing (fill)
+import Canvas.Settings.Advanced exposing (rotate, transform, translate)
+import Color
+import Html exposing (Html, div)
 import Html.Attributes exposing (style)
 
-----------------------------------------------------------------------
+
+type alias Model =
+    { count : Float }
 
 
+type Msg
+    = Frame Float
 
--- For this commit: Starter code, taken from prof. Ravi Chugh
 
-type alias Flags = ()
-
-init : Flags -> (Model, Cmd Msg)
-init () =
-  (initModel, Cmd.none)
-
-main : Program Flags Model Msg
+main : Program () Model Msg
 main =
-  Browser.element
-    { init = init
-    , view = view
-    , update = update
-    , subscriptions = subscriptions
-    }
-
--- MODEL
-
-type alias Model = { count: Int }
-
-initModel = { count = 0 }
+    Browser.element
+        { init = \() -> ( { count = 0 }, Cmd.none )
+        , view = view
+        , update =
+            \msg model ->
+                case msg of
+                    Frame _ ->
+                        ( { model | count = model.count + 1 }, Cmd.none )
+        , subscriptions = \model -> onAnimationFrameDelta Frame
+        }
 
 
--- UPDATE
-
-type Msg = Noop | Reset | Increment
-
-update : Msg -> Model -> (Model, Cmd Msg)
-update msg model =
-  case msg of
-    Noop ->
-      (model, Cmd.none)
-    Reset ->
-      (initModel, Cmd.none)
-    Increment ->
-      ({ count = 1 + model.count }, Cmd.none)
+width =
+    400
 
 
--- VIEW
+height =
+    400
+
+
+centerX =
+    width / 2
+
+
+centerY =
+    height / 2
+
 
 view : Model -> Html Msg
-view model =
-    -- https://css-tricks.com/quick-css-trick-how-to-center-an-object-exactly-in-the-center/
-    let
-      styles =
-        [ ("position", "fixed")
-        , ("top", "50%")
-        , ("left", "50%")
-        , ("transform", "translate(-50%, -50%)")
+view { count } =
+    div
+        [ style "display" "flex"
+        , style "justify-content" "center"
+        , style "align-items" "center"
         ]
-      display =
-        Html.text ("Count: " ++ Debug.toString model.count)
+        [ Canvas.toHtml
+            ( width, height )
+            [ style "border" "10px solid rgba(0,0,0,0.1)" ]
+            [ clearScreen
+            , render count
+            ]
+        ]
+
+
+clearScreen =
+    shapes [ fill Color.white ] [ rect ( 0, 0 ) width height ]
+
+
+render count =
+    let
+        size =
+            width / 3
+
+        x =
+            -(size / 2)
+
+        y =
+            -(size / 2)
+
+        rotation =
+            degrees (count * 3)
+
+        hue =
+            toFloat (count / 4 |> floor |> modBy 100) / 100
     in
-      Html.div (List.map (\(k, v) -> Attr.style k v) styles) [display]
+    shapes
+        [ transform
+            [ translate centerX centerY
+            , rotate rotation
+            ]
+        , fill (Color.hsl hue 0.3 0.7)
+        ]
+        [ rect ( x, y ) size size ]
 
-
--- SUBSCRIPTIONS
-
--- https://github.com/elm/browser/blob/1.0.0/notes/keyboard.md
-keyDecoder : Decode.Decoder String
-keyDecoder =
-  Decode.field "key" Decode.string
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-  Sub.batch
-    [ Browser.Events.onMouseDown (Decode.succeed Increment)
-    , Browser.Events.onKeyDown
-        (Decode.map (\key -> if key == "Escape" then Reset else Noop) keyDecoder)
-    ]
