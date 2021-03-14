@@ -1,3 +1,10 @@
+# Don't commit the elm-stuff directory
+elm-stuff/
+
+# Don't put the generated .js files under version control
+.js
+
+# Don't commit backup files
 .DS_Store
 *~
 .dat

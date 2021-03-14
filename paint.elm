@@ -1,7 +1,17 @@
-module Main exposing (main)
--- elm make Paint.elm --output=elm.js
--- hey Olivia click on the "app.html" one
+module Paint exposing (main)
 
+----------------------------------------------------
+-- Our notes:
+-- elm make Paint.elm --output=elm.js
+-- click on the "app.html" one
+----------------------------------------------------
+-- Notes for turning it in:
+
+{-- Canvas started code: https://ellie-app.com/62Dy7vxsBHZa1,
+    which was linked from the Canvas documentation --}
+
+----------------------------------------------------
+-- Imports
 import Browser
 import Browser.Events exposing (onAnimationFrameDelta)
 import Canvas exposing (rect, shapes)
@@ -10,6 +20,8 @@ import Canvas.Settings.Advanced exposing (rotate, transform, translate)
 import Color
 import Html exposing (Html, div)
 import Html.Attributes exposing (style)
+
+
 
 {-- MODEL
 -- Define a rectangle to be the canvas? 
@@ -28,27 +40,43 @@ The entire List of paint strokes is rendered.
  -- setting two "splatter mode": onMouseDown, splatter a bit of paint as like a one-time thing
 
 --}
+
+type alias Point = { x : Float, y : Float }
+
 type alias Model =
-    { count : Float }
+    { count : Float
+    , clickList : List Point
+     }
 
 
 type Msg
-    = Frame Float
+    = Frame Float | ClickedPoint Point
 
 
 main : Program () Model Msg
 main =
     Browser.element
-        { init = \() -> ( { count = 0 }, Cmd.none )
+        { init = \() -> ( { count = 0, clickList = [] }, Cmd.none )
         , view = view
-        , update =
-            \msg model ->
-                case msg of
-                    Frame _ ->
-                        ( { model | count = model.count + 1 }, Cmd.none )
+        , update = update
         , subscriptions = \model -> onAnimationFrameDelta Frame
         }
 
+update : Msg -> Model -> (Model, Cmd Msg)
+update msg model =
+  case msg of
+    -- a Frame msg makes things spin
+    Frame _ ->
+      ( { model | count = model.count + 1 }, Cmd.none )
+
+    -- a ClickedPoint message means a new click for a paint splatter
+    ClickedPoint newClick ->
+      ( { model | clickList = newClick :: model.clickList }, Cmd.none )
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Debug.todo "time to batch..."
 
 width =
     400
@@ -67,26 +95,27 @@ centerY =
 
 
 view : Model -> Html Msg
-view { count } =
+view model =
     div
         [ style "display" "flex"
         , style "justify-content" "center"
         , style "align-items" "center"
         ]
-        [ Canvas.toHtml
+        [ {-- uncomment this to make the spinning box appear
+        Canvas.toHtml
             ( width, height )
-            [ style "border" "10px solid rgba(0,0,0,0.1)" ]
+            [ style "border" "1000px solid rgba(0,0,0,0.1)" ]
             [ clearScreen
-            , render count
+            , renderSpin model.count
             ]
+        ,--} Html.div [] [Html.text ("num clicks: " ++ String.fromInt (List.length model.clickList))]
         ]
 
 
 clearScreen =
-    shapes [ fill Color.white ] [ rect ( 0, 0 ) width height ]
+    shapes [ fill Color.green ] [ rect ( 0, 0 ) width height ]
 
-
-render count =
+renderSpin count =
     let
         size =
             width / 3
