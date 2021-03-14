@@ -19,7 +19,7 @@ import Json.Decode as Decode
 -- from original:
 import Browser
 import Browser.Events exposing (onAnimationFrameDelta, onMouseDown, onClick)
-import Canvas exposing (rect, shapes)
+import Canvas exposing (rect, shapes, circle, Renderable, Point, Shape)
 import Canvas.Settings exposing (fill)
 import Canvas.Settings.Advanced exposing (rotate, transform, translate)
 import Color
@@ -46,7 +46,8 @@ The entire List of paint strokes is rendered.
 
 --}
 
-type alias Point = { x : Int, y : Int }
+-- jk don't do this cuz Canvas has a built-in point type.
+--type alias Point = { x : Float, y : Float }
 
 type alias Model =
     { count : Float
@@ -58,14 +59,28 @@ type Msg
     = Frame Float | ClickedPoint Point
 
 
-main : Program () Model Msg
+main : Program Flags Model Msg
 main =
     Browser.element
-        { init = \() -> ( { count = 0, clickList = [] }, Cmd.none )
+        { init = init
         , view = view
         , update = update
         , subscriptions = subscriptions
         }
+
+type alias Flags =
+    --{ windowWidth : Int }
+    ()
+
+init : Flags -> ( Model, Cmd Msg )
+init () =
+    -- If you add new fields to the model, put initial values here:
+    ({ count = 0
+    , clickList = [] }
+    -- No initial command:
+    , Cmd.none )
+
+
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -88,7 +103,8 @@ update msg model =
 clickDecoder : Decode.Decoder Point
 clickDecoder =
   Decode.map2
-    (\x y -> { x = x, y = y })
+    --(\x y -> { x = toFloat x, y = toFloat y })
+    (\x y -> (toFloat x, toFloat y))
     (Decode.field "clientX" Decode.int)
     (Decode.field "clientY" Decode.int)
 
@@ -108,22 +124,31 @@ subscriptions model =
     [ onAnimationFrameDelta Frame -- render animation. This is used for the spinning box
     , onClick (Decode.map pointToMsg clickDecoder) -- React to clicks
     ]
-width =
-    400
 
 
-height =
-    400
+-- constants: (from the spinning box:)
+width = 400
+height = 400
+centerX = width / 2
+centerY = height / 2
+
+-- helper function for view:
+-- the goal of this function is to place a dot (for now) where we click
+-- eventually this will put shapes that looks like a paint splatter instead of a dot
+placeOneSplatter : Point -> Shape
+placeOneSplatter pt =
+    circle pt 10
+
+-- initially call this on model.clickList
+placeSplatters : List Point -> Renderable
+placeSplatters pts =
+    -- The (map placeOneSplatter pts) call is: List Point -> List Shape
+    -- so this allows us to use the built-in shapes function
+    Canvas.shapes [] (List.map placeOneSplatter pts)
 
 
-centerX =
-    width / 2
 
-
-centerY =
-    height / 2
-
-
+-- View:
 view : Model -> Html Msg
 view model =
     div
@@ -139,12 +164,19 @@ view model =
             , renderSpin model.count
             ]
         ,--} Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (List.length model.clickList))]
+        , Canvas.toHtml
+            (width, height)
+            [ style "border" "1000px solid rgba(0,0,0,0.1)" ]
+            [placeSplatters model.clickList ]
         ]
 
 
+
+-- For the spinning box:
 clearScreen =
     shapes [ fill Color.green ] [ rect ( 0, 0 ) width height ]
 
+-- For the spinning box:
 renderSpin count =
     let
         size =
