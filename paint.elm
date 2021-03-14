@@ -12,8 +12,13 @@ module Paint exposing (main)
 
 ----------------------------------------------------
 -- Imports
+
+-- added by us:
+import Platform
+import Json.Decode as Decode
+-- from original:
 import Browser
-import Browser.Events exposing (onAnimationFrameDelta)
+import Browser.Events exposing (onAnimationFrameDelta, onMouseDown, onClick)
 import Canvas exposing (rect, shapes)
 import Canvas.Settings exposing (fill)
 import Canvas.Settings.Advanced exposing (rotate, transform, translate)
@@ -41,7 +46,7 @@ The entire List of paint strokes is rendered.
 
 --}
 
-type alias Point = { x : Float, y : Float }
+type alias Point = { x : Int, y : Int }
 
 type alias Model =
     { count : Float
@@ -59,7 +64,7 @@ main =
         { init = \() -> ( { count = 0, clickList = [] }, Cmd.none )
         , view = view
         , update = update
-        , subscriptions = \model -> onAnimationFrameDelta Frame
+        , subscriptions = subscriptions
         }
 
 update : Msg -> Model -> (Model, Cmd Msg)
@@ -69,15 +74,40 @@ update msg model =
     Frame _ ->
       ( { model | count = model.count + 1 }, Cmd.none )
 
-    -- a ClickedPoint message means a new click for a paint splatter
+    -- a ClickedPoint message gives us a new coordinate for a paint splatter
     ClickedPoint newClick ->
       ( { model | clickList = newClick :: model.clickList }, Cmd.none )
 
 
+
+{-- Helper function for subscriptions:
+    This maps the coordinates of the click, which are given
+    in JSON, to ints so we can bundle them into a Point
+ --}
+-- credit: clickDecoder taken from Quiz 1' code (presumably written by Prof Chugh)
+clickDecoder : Decode.Decoder Point
+clickDecoder =
+  Decode.map2
+    (\x y -> { x = x, y = y })
+    (Decode.field "clientX" Decode.int)
+    (Decode.field "clientY" Decode.int)
+
+
+{-- point to Msg:
+    Helper function for subscriptions. 
+    Literally just turns a Point into a Msg so that 
+    subscriptions can have the right type.
+--}
+pointToMsg : Point -> Msg
+pointToMsg point =
+  ClickedPoint point
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Debug.todo "time to batch..."
-
+    Sub.batch
+    [ onAnimationFrameDelta Frame -- render animation. This is used for the spinning box
+    , onClick (Decode.map pointToMsg clickDecoder) -- React to clicks
+    ]
 width =
     400
 
@@ -108,7 +138,7 @@ view model =
             [ clearScreen
             , renderSpin model.count
             ]
-        ,--} Html.div [] [Html.text ("num clicks: " ++ String.fromInt (List.length model.clickList))]
+        ,--} Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (List.length model.clickList))]
         ]
 
 
