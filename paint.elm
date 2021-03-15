@@ -38,15 +38,17 @@ import Html.Attributes exposing (style)
 -- jk don't do this cuz Canvas has a built-in point type.
 --type alias Point = { x : Float, y : Float }
 
-type alias Splatter = {loc : Point, size : Float } --add in a color field
+type alias Splatter = {loc : Point, size : Float, index : Int } --added in an index field
 --maybe rename size to radius
 --you can put more stuff in here
 
 
 type alias Model =
-    { count : Float --from the spinny box example
+    { count : Int -- Count of how many splatters
     , clickList : List Point -- Points of where they clicked. Head is most recent
     , splatterList : List Splatter -- like clicklist but also contains size of the splatter for each click. Head is most recent
+    , colorList : List Int -- List of colors in order of when they were generated
+    --, colorList : List Color
     --, colorList or something 
     }
 
@@ -78,7 +80,8 @@ init flags =
     -- If you add new fields to the model, put initial values here:
     ({ count = 0
     , clickList = []
-    , splatterList = []}
+    , splatterList = []
+    , colorList = []}
     -- no initial commands
     , Cmd.none)
 
@@ -95,13 +98,13 @@ update msg model =
     -- a ClickedPoint message gives us a new coordinate for a paint splatter
     ClickedPoint newClick ->
         -- add this Point to the clickList
-      ( { model | clickList = newClick :: model.clickList }
+      ( { model | clickList = newClick :: model.clickList, count = model.count + 1 }
         -- generate a size for the splatter
       , (Random.generate (SizeSplatter newClick) (Random.float 3 50)) )
 
     SizeSplatter loc size ->
       ({model 
-      | splatterList = ({loc = loc, size = size} :: model.splatterList)
+      | splatterList = ({loc = loc, size = size, index = model.count} :: model.splatterList)
       }
       , Cmd.none
       )
@@ -160,11 +163,12 @@ placeOneSplatter splat =
     circle splat.loc splat.size
 
 -- initially call this on model.clickList
-placeSplatters : List Splatter -> Renderable
-placeSplatters pts =
+placeSplatters : List Splatter -> Int -> Renderable
+placeSplatters pts count =
     -- The (map placeOneSplatter pts) call is: List Point -> List Shape
     -- so this allows us to use the built-in shapes function
-    Canvas.shapes [] (List.map placeOneSplatter pts)
+    --let c = colors
+    Canvas.shapes [fill (Color.rgba 1 2 0 1)] (List.map placeOneSplatter pts)
 
 
 
@@ -183,11 +187,14 @@ view model =
             [ clearScreen
             , renderSpin model.count
             ]
-        ,--} Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (List.length model.clickList))]
+        ,--} {-- this wasnt appearing- im trying something else
+                Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (List.length model.clickList))]
+            --}
+            Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (model.count))]
         , Canvas.toHtml
             (800, 700)
             [ style "border" "1000px solid rgba(0,0,0,0.1)" ] --i haven't messed around with this line, feel free to!
-            [placeSplatters model.splatterList ]
+            [placeSplatters model.splatterList model.count]
         ]
 
 
