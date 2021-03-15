@@ -29,40 +29,33 @@ import Html.Attributes exposing (style)
 
 
 
-{-- MODEL
--- Define a rectangle to be the canvas? 
-Or maybe the canvas shouldn't be in the model cuz it doesnt ever update.
-
--- List of paint strokes? 
-Whenever they add a paint stroke, it gets added to the list. 
-The entire List of paint strokes is rendered.
-
---}
-
-
 {-- idea:
     We can have multiple settings:
  -- setting one "paint mode", onMouseDown paint wherever the cursor goes, stop on next Mouse Down.
  -- setting two "splatter mode": onMouseDown, splatter a bit of paint as like a one-time thing
-
 --}
 
 -- jk don't do this cuz Canvas has a built-in point type.
 --type alias Point = { x : Float, y : Float }
 
-type alias Splatter = {loc : Point, size : Float } --maybe rename size to radius
+type alias Splatter = {loc : Point, size : Float } --add in a color field
+--maybe rename size to radius
+--you can put more stuff in here
+
 
 type alias Model =
-    { count : Float
+    { count : Float --from the spinny box example
     , clickList : List Point -- Points of where they clicked. Head is most recent
     , splatterList : List Splatter -- like clicklist but also contains size of the splatter for each click. Head is most recent
-     }
+    --, colorList or something 
+    }
 
 
 type Msg
-    = Frame Float 
-    | ClickedPoint Point
-    | SizeSplatter Point Float
+    = Frame Float --from spinny box, we're not using this
+    | ClickedPoint Point --handles clicks
+    | SizeSplatter Point Float --handles the generator that generates the size for that splatte
+    --you should add stuff here.
 
 -- Add more flags here:
 type alias Flags =
@@ -95,6 +88,7 @@ update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
     -- a Frame msg makes things spin
+    --once again, this is for rendering animation, we dont currently use it
     Frame _ ->
       ( { model | count = model.count + 1 }, Cmd.none )
 
@@ -112,6 +106,8 @@ update msg model =
       , Cmd.none
       )
 
+    --add in stuff here based on like a color msg.
+    --like when they pick a color, add to colorList or something
 
 
 {-- Helper function for subscriptions:
@@ -142,6 +138,8 @@ subscriptions model =
     Sub.batch
     [ onAnimationFrameDelta Frame -- render animation. This is used for the spinning box
     , onClick (Decode.map pointToMsg clickDecoder) -- React to clicks
+
+    -- add stuff here
     ]
 
 
@@ -150,7 +148,6 @@ width = 400
 height = 400
 centerX = width / 2
 centerY = height / 2
-
 
 -- helper function for placeOnSplatter: literally just picks a random number
 
@@ -188,13 +185,14 @@ view model =
             ]
         ,--} Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (List.length model.clickList))]
         , Canvas.toHtml
-            (width, height)
-            [ style "border" "1000px solid rgba(0,0,0,0.1)" ]
+            (800, 700)
+            [ style "border" "1000px solid rgba(0,0,0,0.1)" ] --i haven't messed around with this line, feel free to!
             [placeSplatters model.splatterList ]
         ]
 
 
 
+{-- Everything below was only for the spinning box example. Not actually used --}
 -- For the spinning box:
 clearScreen =
     shapes [ fill Color.green ] [ rect ( 0, 0 ) width height ]
