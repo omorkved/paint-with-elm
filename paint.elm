@@ -16,6 +16,7 @@ module Paint exposing (main)
 -- added by us:
 import Platform
 import Json.Decode as Decode
+import Random
 -- from original:
 import Browser
 import Browser.Events exposing (onAnimationFrameDelta, onMouseDown, onClick)
@@ -49,15 +50,24 @@ The entire List of paint strokes is rendered.
 -- jk don't do this cuz Canvas has a built-in point type.
 --type alias Point = { x : Float, y : Float }
 
+type alias Splatter = {loc : Point, size : Float } --maybe rename size to radius
+
 type alias Model =
     { count : Float
-    , clickList : List Point
+    , clickList : List Point -- Points of where they clicked. Head is most recent
+    , splatterList : List Splatter -- like clicklist but also contains size of the splatter for each click. Head is most recent
      }
 
 
 type Msg
-    = Frame Float | ClickedPoint Point
+    = Frame Float 
+    | ClickedPoint Point
+    | SizeSplatter Point Float
 
+-- Add more flags here:
+type alias Flags =
+    Int --passing in date for now
+    -- jk { windowWidth : Int }
 
 main : Program Flags Model Msg
 main =
@@ -68,17 +78,16 @@ main =
         , subscriptions = subscriptions
         }
 
-type alias Flags =
-    --{ windowWidth : Int }
-    ()
-
 init : Flags -> ( Model, Cmd Msg )
-init () =
+init flags =
+    --right now, not doing anything with flags.
+
     -- If you add new fields to the model, put initial values here:
     ({ count = 0
-    , clickList = [] }
-    -- No initial command:
-    , Cmd.none )
+    , clickList = []
+    , splatterList = []}
+    -- no initial commands
+    , Cmd.none)
 
 
 
@@ -91,7 +100,17 @@ update msg model =
 
     -- a ClickedPoint message gives us a new coordinate for a paint splatter
     ClickedPoint newClick ->
-      ( { model | clickList = newClick :: model.clickList }, Cmd.none )
+        -- add this Point to the clickList
+      ( { model | clickList = newClick :: model.clickList }
+        -- generate a size for the splatter
+      , (Random.generate (SizeSplatter newClick) (Random.float 3 50)) )
+
+    SizeSplatter loc size ->
+      ({model 
+      | splatterList = ({loc = loc, size = size} :: model.splatterList)
+      }
+      , Cmd.none
+      )
 
 
 
@@ -132,15 +151,19 @@ height = 400
 centerX = width / 2
 centerY = height / 2
 
+
+-- helper function for placeOnSplatter: literally just picks a random number
+
+
 -- helper function for view:
 -- the goal of this function is to place a dot (for now) where we click
 -- eventually this will put shapes that looks like a paint splatter instead of a dot
-placeOneSplatter : Point -> Shape
-placeOneSplatter pt =
-    circle pt 10
+placeOneSplatter : Splatter -> Shape
+placeOneSplatter splat =
+    circle splat.loc splat.size
 
 -- initially call this on model.clickList
-placeSplatters : List Point -> Renderable
+placeSplatters : List Splatter -> Renderable
 placeSplatters pts =
     -- The (map placeOneSplatter pts) call is: List Point -> List Shape
     -- so this allows us to use the built-in shapes function
@@ -167,7 +190,7 @@ view model =
         , Canvas.toHtml
             (width, height)
             [ style "border" "1000px solid rgba(0,0,0,0.1)" ]
-            [placeSplatters model.clickList ]
+            [placeSplatters model.splatterList ]
         ]
 
 

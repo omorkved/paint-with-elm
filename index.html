@@ -14,7 +14,10 @@
     <script src="https://unpkg.com/elm-canvas@2.2/elm-canvas.js"></script>
     <script src="./Paint.js"></script>
     <script>
-      var app = Elm.Paint.init({ node: document.querySelector("main") });
+      var app = Elm.Paint.init({ 
+        node: document.querySelector("main"), // Run our main function in Paint.js
+        flags: Date.now() //Pass in flags //jk dont need this flag { windowWidth = window.innerWidth }
+      });
       // you can use ports and stuff here
     </script>
     <div><p>Testing the index.html file - this should appear at the bottom of the page</p></div>
