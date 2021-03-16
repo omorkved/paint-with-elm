@@ -199,7 +199,7 @@ view model =
             --}
             Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (model.count))]
         , Canvas.toHtml
-            (800, 700)
+            (800, 700) --Olivia will change to window.height / 2.
             [ style "border" "1000px solid rgba(0,0,0,0.1)" ] --i haven't messed around with this line, feel free to!
             (List.map3 placeSplatter model.splatterList (List.range 1 model.count) model.colorList)
         ]
@@ -214,20 +214,11 @@ clearScreen =
 -- For the spinning box:
 renderSpin count =
     let
-        size =
-            width / 3
-
-        x =
-            -(size / 2)
-
-        y =
-            -(size / 2)
-
-        rotation =
-            degrees (count * 3)
-
-        hue =
-            toFloat (count / 4 |> floor |> modBy 100) / 100
+        size =  width / 3
+        x = -(size / 2)
+        y = -(size / 2)
+        rotation = degrees (count * 3)
+        hue = toFloat (count / 4 |> floor |> modBy 100) / 100
     in
     shapes
         [ transform
