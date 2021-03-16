@@ -26,6 +26,7 @@ import Canvas.Settings.Advanced exposing (rotate, transform, translate)
 import Color
 import Html exposing (Html, div)
 import Html.Attributes exposing (style)
+import Array
 
 
 
@@ -47,7 +48,7 @@ type alias Model =
     { count : Int -- Count of how many splatters
     , clickList : List Point -- Points of where they clicked. Head is most recent
     , splatterList : List Splatter -- like clicklist but also contains size of the splatter for each click. Head is most recent
-    , colorList : List Int -- List of colors in order of when they were generated
+    , colorList : List Color.Color -- List of colors in order of when they were generated
     --, colorList : List Color
     --, colorList or something 
     }
@@ -81,7 +82,7 @@ init flags =
     ({ count = 0
     , clickList = []
     , splatterList = []
-    , colorList = []}
+    , colorList = [Color.red, Color.orange, Color.yellow, Color.green, Color.blue, Color.purple, Color.brown]}
     -- no initial commands
     , Cmd.none)
 
@@ -170,6 +171,12 @@ placeSplatters pts count =
     --let c = colors
     Canvas.shapes [fill (Color.rgba 1 2 0 1)] (List.map placeOneSplatter pts)
 
+placeSplatter : Splatter -> Int -> Color.Color -> Renderable
+placeSplatter pt i colors =
+    -- The (map placeOneSplatter pts) call is: List Point -> List Shape
+    -- so this allows us to use the built-in shapes function
+    Canvas.shapes [fill colors] [placeOneSplatter pt]
+
 
 
 -- View:
@@ -194,7 +201,7 @@ view model =
         , Canvas.toHtml
             (800, 700)
             [ style "border" "1000px solid rgba(0,0,0,0.1)" ] --i haven't messed around with this line, feel free to!
-            [placeSplatters model.splatterList model.count]
+            (List.map3 placeSplatter model.splatterList (List.range 1 model.count) model.colorList)
         ]
 
 
