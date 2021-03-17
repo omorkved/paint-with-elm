@@ -31,9 +31,14 @@ import Canvas exposing (rect, shapes, circle, Renderable, Point, Shape)
 import Canvas.Settings exposing (fill, Setting)
 import Canvas.Settings.Advanced exposing (rotate, transform, translate)
 import Color
-import Html exposing (Html, div)
+import Html exposing (Html, div, button, text)
+import Html.Events
 import Html.Attributes exposing (style)
 import Array
+--import Element exposing (text)
+import Element
+import Element.Background as Background
+import Element.Input as Input
 ---------------------------------------------------------
 -- Types
 
@@ -66,6 +71,7 @@ type Msg
     | PickWhichShape Point Radius BlobID --handles the generator for the ID of the blob
     | GetWindowSize Viewport
     | Frame Float -- For animation
+    | PickColor Color.Color
     --you should add stuff here.
 
 ---------------------------------------------------------
@@ -95,7 +101,7 @@ init flags =
     , viewport = Nothing
     , clickList = []
     , splatterList = []
-    , colorList = [Color.red, Color.orange, Color.yellow, Color.green, Color.blue, Color.purple, Color.brown]}
+    , colorList = [Color.blue]}
     
     -- Fetch the window size
     , Task.perform GetWindowSize Browser.Dom.getViewport)
@@ -120,9 +126,18 @@ update msg model =
     -- a ClickedPoint message gives us a new coordinate for a paint splatter
     ClickedPoint newClick ->
         -- Add this Point to the clickList
-      ( { model | clickList = newClick :: model.clickList, count = model.count + 1 }
-        -- Generate a size for the splatter
-      , (Random.generate (PickRadiusSplatter newClick) (Random.float 3 50)) )
+      --- sorry i really need to fix this plz ignore the fugly code
+      {--let 
+        color = case List.head model.colorList of
+          Just c -> c
+          _ -> Color.white
+      in
+        ( { model | clickList = newClick :: model.clickList, count = model.count + 1, colorList = addColor color model.colorList}
+          -- Generate a size for the splatter
+        , (Random.generate (PickRadiusSplatter newClick) (Random.float 3 50)) ) --}
+        ( { model | clickList = newClick :: model.clickList, count = model.count + 1}
+          -- Generate a size for the splatter
+        , (Random.generate (PickRadiusSplatter newClick) (Random.float 3 50)) ) 
 
 
     -- Pick a random size for the splatter
@@ -149,6 +164,9 @@ update msg model =
       , Cmd.none
       )
 
+    -- Chose a color and add to list of colors
+    PickColor color -> 
+      ({ model | colorList = addColor color model.colorList }, Cmd.none)
 
     -- Credit: Learned how to update viewport from 
     -- https://discourse.elm-lang.org/t/browser-dom-getviewport-return-value/1990/2
@@ -202,7 +220,7 @@ placeOneSplatter splat =
       r = splat.currRadius
     in
     -- Turn Paint dripping off Here
-    dripPaint True x y splat.dripLength <|
+    dripPaint False x y splat.dripLength <|
 
     rays False x y <|
     case splat.blobID of
@@ -230,6 +248,29 @@ placeSplatter pt i colors =
     -- so this allows us to use the built-in shapes function
     Canvas.shapes [fill colors] (placeOneSplatter pt)
 
+-- add a new color to colorList and modify the rest of the colorlist
+addColor : Color.Color -> List Color.Color -> List Color.Color
+addColor c colors = 
+  case colors of
+    [] -> c :: colors
+    _ -> c :: List.map2 mixColors (List.indexedMap Tuple.pair colors) (List.repeat (List.length colors) c)
+
+-- mix two colors with a given factor
+mixColors : (Int, Color.Color) -> Color.Color -> Color.Color
+mixColors (index, oColor) mixColor =
+  let c1 = Color.toRgba oColor
+      c2 = Color.toRgba mixColor
+      i = (toFloat index) + 1
+      j = i - 1
+  in 
+    let r = ((j * c1.red) + c2.red)/i
+        g = ((j*c1.green) + c2.green)/i
+        b = ((j*c1.blue) + c2.blue)/i
+    in 
+      Color.fromRgba {red = r, green = g, blue = b, alpha = 1}
+
+  
+
 
 
 
@@ -247,7 +288,7 @@ view model =
     in
     div
         [ style "display" "flex"
-        , style "justify-content" "center"
+        --, style "justify-content" "center"
         , style "align-items" "center"
         ]
         [  {-- this wasnt appearing- im trying something else
@@ -256,6 +297,14 @@ view model =
             Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (model.count))]
         , Canvas.toHtml
             (width, height)
-            [ style "border" "1000px solid rgba(0,0,0,0.1)"] --i haven't messed around with this line, feel free to!
+            [ style "border" (String.fromInt 50 ++ "px solid rgba(0,0,0,0.1)")] --i haven't messed around with this line, feel free to!
             (List.map3 placeSplatter model.splatterList (List.range 1 model.count) model.colorList)
-        ]
+          , div 
+              [style "border" "1px solid rgba(1,1,0,0.1)"] 
+          [ button [Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
+          , button [Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
+          , button [Html.Events.onClick (PickColor Color.yellow)] [ text "Yellow" ]
+          , button [Html.Events.onClick (PickColor Color.green)] [ text "Green" ]
+          , button [Html.Events.onClick (PickColor Color.blue)] [ text "Blue" ]
+          , button [Html.Events.onClick (PickColor Color.purple)] [ text "Purple" ]
+          ]]
