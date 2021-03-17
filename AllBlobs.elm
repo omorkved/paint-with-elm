@@ -55,23 +55,23 @@ blob5 x y r =
 -- special effects:
 
 -- might not use this but i made it look like rays coming out of the corner
-rays : Bool -> Float -> Float -> List Shape -> List Shape
-rays bool x y blob =
+rays : Bool -> Float -> Float -> List Shape
+rays bool x y =
   if bool then
-    path ( x, y )
+    [path ( x, y )
         [ lineTo ( 10, 30 )
         , lineTo ( 30, 30 )
         , lineTo ( 20, 10 )
-        ] 
-        :: blob
-    else blob
+        ]
+    ]
+    else []
 
 
 -- make it drip paint
 dripPaint : Bool -> Float -> Float -> Radius -> List Shape -> List Shape
 dripPaint bool x y r blob =
   if bool then
-    List.append blob 
+    List.append blob
     [ path ( x, y )
         [ lineTo ( x , y + (4*r) )
         , lineTo ( x + 5, y + (4*r))
@@ -79,3 +79,7 @@ dripPaint bool x y r blob =
         ]
     ]
     else blob
+
+
+--clearEverything =
+--  clear ( 0, 0 ) width height
