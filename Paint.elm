@@ -337,8 +337,7 @@ view model =
         [  {-- this wasnt appearing- im trying something else
                 Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (List.length model.clickList))]
             --}
-            Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (model.count))]
-        , Canvas.toHtml
+        Canvas.toHtml
             (canvasWidth width, canvasHeight height)
             [ style "border" "10px solid rgba(0,0,0,0.1)"] --i haven't messed around with this line, feel free to!
             (List.map3 (placeSplatter model) model.splatterList (List.range 1 model.count) model.colorList)
