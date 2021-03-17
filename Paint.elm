@@ -15,6 +15,9 @@ module Paint exposing (main)
 ----------------------------------------------------
 -- Imports
 
+-- our file
+import AllBlobs exposing (..)
+
 -- added by us:
 import Platform
 import Task
@@ -37,10 +40,14 @@ import Array
 -- jk don't do this cuz Canvas has a built-in point type.
 --type alias Point = { x : Float, y : Float }
 
+type alias BlobID = Int
+type alias Radius = Float
+
 type alias Splatter = 
     { loc : Point
     , finalRadius : Float -- Once animation stops
     , currRadius : Float -- For animation
+    , blobID : BlobID
     , index : Int }
 --you can put more stuff in here
 
@@ -54,7 +61,8 @@ type alias Model =
 
 type Msg
     = ClickedPoint Point --handles clicks
-    | RadiusSplatter Point Float --handles the generator that generates the size for that splatte
+    | PickRadiusSplatter Point Radius --handles the generator for the final radius for the splatter
+    | PickWhichShape Point Radius BlobID --handles the generator for the ID of the blob
     | GetWindowSize Viewport
     | Frame Float -- For animation
     --you should add stuff here.
@@ -86,7 +94,7 @@ init flags =
     , viewport = Nothing
     , clickList = []
     , splatterList = []
-    , colorList = [Color.red, Color.orange, Color.yellow, Color.green, Color.blue, Color.purple, Color.brown]}
+    , colorList = [Color.green, Color.orange, Color.yellow, Color.green, Color.blue, Color.purple, Color.brown]}
     
     -- Fetch the window size
     , Task.perform GetWindowSize Browser.Dom.getViewport)
@@ -112,19 +120,32 @@ update msg model =
         -- Add this Point to the clickList
       ( { model | clickList = newClick :: model.clickList, count = model.count + 1 }
         -- Generate a size for the splatter
-      , (Random.generate (RadiusSplatter newClick) (Random.float 3 50)) )
+      , (Random.generate (PickRadiusSplatter newClick) (Random.float 3 50)) )
 
-    RadiusSplatter loc finalRadius ->
+
+    -- Pick a random size for the splatter
+    PickRadiusSplatter loc finalRadius ->
+      -- Dont update the model just yet! We want another cmd to generate a random blobID first.
+      ( model
+      , Random.generate (PickWhichShape loc finalRadius) (Random.int 1 5)
+      )
+
+
+    -- Just picked a random blobID. Pack it all into a new Splatter in our model
+    PickWhichShape loc finalRadius blobID ->
       ({model 
       | splatterList = 
         ({loc = loc
         , finalRadius = finalRadius
-        , currRadius = 5 --or 0 or 10 or something small
+        -- Radius begins small (for animation)
+        , currRadius = 5
+        , blobID = blobID
         , index = model.count} 
         :: model.splatterList)
       }
       , Cmd.none
       )
+
 
     -- Credit: Learned how to update viewport from 
     -- https://discourse.elm-lang.org/t/browser-dom-getviewport-return-value/1990/2
@@ -168,23 +189,40 @@ subscriptions model =
 -- helper function for view:
 -- the goal of this function is to place a dot (for now) where we click
 -- eventually this will put shapes that looks like a paint splatter instead of a dot
-placeOneSplatter : Splatter -> Shape
+placeOneSplatter : Splatter -> List Shape
 placeOneSplatter splat =
-    circle splat.loc splat.currRadius
+    let
+      x = Tuple.first splat.loc
+      y = Tuple.second splat.loc
+      -- Note we use the current radius (not the final radius)
+      -- so that the animation works
+      r = splat.currRadius
+    in
+    case splat.blobID of
+    -- Probably can refactor this matching to make it nicer
+    -- I placed these functions in a new file (AllBlobs.elm)
+      1 -> blob1 x y r
+      2 -> blob2 x y r
+      3 -> blob3 x y r
+      4 -> blob4 x y r
+      _ -> blob5 x y r
+      
+    
+        
 
 -- initially call this on model.clickList
-placeSplatters : List Splatter -> Int -> Renderable
-placeSplatters pts count =
+--placeSplatters : List Splatter -> Int -> Renderable
+--placeSplatters pts count =
     -- The (map placeOneSplatter pts) call is: List Point -> List Shape
     -- so this allows us to use the built-in shapes function
     --let c = colors
-    Canvas.shapes [fill (Color.rgba 1 2 0 1)] (List.map placeOneSplatter pts)
+    --Canvas.shapes [fill (Color.rgba 1 2 0 1)] (List.map placeOneSplatter pts)
 
 placeSplatter : Splatter -> Int -> Color.Color -> Renderable
 placeSplatter pt i colors =
     -- The (map placeOneSplatter pts) call is: List Point -> List Shape
     -- so this allows us to use the built-in shapes function
-    Canvas.shapes [fill colors] [placeOneSplatter pt]
+    Canvas.shapes [fill colors] (placeOneSplatter pt)
 
 
 
