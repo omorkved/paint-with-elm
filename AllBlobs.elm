@@ -1,6 +1,6 @@
 module AllBlobs exposing (..)
 
-import Canvas exposing (circle, Shape)
+import Canvas exposing (circle, lineTo, path, Shape)
 
 type alias Radius = Float
 
@@ -50,3 +50,32 @@ blob5 x y r =
   , circle (x - (9*r/7), y) (r/2)
   , circle (x - (8*r/7), y + (r/3)) (r/3)
   ]
+
+
+-- special effects:
+
+-- might not use this but i made it look like rays coming out of the corner
+rays : Bool -> Float -> Float -> List Shape -> List Shape
+rays bool x y blob =
+  if bool then
+    path ( x, y )
+        [ lineTo ( 10, 30 )
+        , lineTo ( 30, 30 )
+        , lineTo ( 20, 10 )
+        ] 
+        :: blob
+    else blob
+
+
+-- make it drip paint
+dripPaint : Bool -> Float -> Float -> Radius -> List Shape -> List Shape
+dripPaint bool x y r blob =
+  if bool then
+    List.append blob 
+    [ path ( x, y )
+        [ lineTo ( x , y + (4*r) )
+        , lineTo ( x + 5, y + (4*r))
+        , lineTo ( x + 5 , y )
+        ]
+    ]
+    else blob

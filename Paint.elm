@@ -48,6 +48,7 @@ type alias Splatter =
     , finalRadius : Float -- Once animation stops
     , currRadius : Float -- For animation
     , blobID : BlobID
+    , dripLength : Float -- For animation
     , index : Int }
 --you can put more stuff in here
 
@@ -94,18 +95,19 @@ init flags =
     , viewport = Nothing
     , clickList = []
     , splatterList = []
-    , colorList = [Color.green, Color.orange, Color.yellow, Color.green, Color.blue, Color.purple, Color.brown]}
+    , colorList = [Color.red, Color.orange, Color.yellow, Color.green, Color.blue, Color.purple, Color.brown]}
     
     -- Fetch the window size
     , Task.perform GetWindowSize Browser.Dom.getViewport)
 
 
+-- For the animation
 growSplat : Splatter -> Splatter
 growSplat splat =
     if splat.currRadius < splat.finalRadius then
       { splat | currRadius = splat.currRadius + 2 }
     else
-      splat
+      { splat | dripLength = splat.dripLength + (0.005 * splat.finalRadius) }
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -140,6 +142,7 @@ update msg model =
         -- Radius begins small (for animation)
         , currRadius = 5
         , blobID = blobID
+        , dripLength = 0
         , index = model.count} 
         :: model.splatterList)
       }
@@ -198,6 +201,10 @@ placeOneSplatter splat =
       -- so that the animation works
       r = splat.currRadius
     in
+    -- Turn Paint dripping off Here
+    dripPaint True x y splat.dripLength <|
+
+    rays False x y <|
     case splat.blobID of
     -- Probably can refactor this matching to make it nicer
     -- I placed these functions in a new file (AllBlobs.elm)
@@ -209,7 +216,6 @@ placeOneSplatter splat =
       
     
         
-
 -- initially call this on model.clickList
 --placeSplatters : List Splatter -> Int -> Renderable
 --placeSplatters pts count =
