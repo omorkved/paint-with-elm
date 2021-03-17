@@ -125,19 +125,31 @@ update msg model =
 
     -- a ClickedPoint message gives us a new coordinate for a paint splatter
     ClickedPoint newClick ->
-        -- Add this Point to the clickList
-      --- sorry i really need to fix this plz ignore the fugly code
-      {--let 
-        color = case List.head model.colorList of
-          Just c -> c
-          _ -> Color.white
-      in
-        ( { model | clickList = newClick :: model.clickList, count = model.count + 1, colorList = addColor color model.colorList}
-          -- Generate a size for the splatter
-        , (Random.generate (PickRadiusSplatter newClick) (Random.float 3 50)) ) --}
-        ( { model | clickList = newClick :: model.clickList, count = model.count + 1}
-          -- Generate a size for the splatter
-        , (Random.generate (PickRadiusSplatter newClick) (Random.float 3 50)) ) 
+      -- Add this Point to the clickList
+      let
+        (width, height) = 
+          case model.viewport of
+              Nothing ->
+                  (800, 800)
+              Just viewport ->
+                  (round viewport.viewport.width
+                  , round viewport.viewport.height)
+      in 
+        if (Tuple.first newClick > toFloat (width-100)) || (Tuple.second newClick > toFloat (height-100))
+        then (model, Cmd.none)
+        --- sorry i really need to fix this plz ignore the fugly code
+        {--let 
+          color = case List.head model.colorList of
+            Just c -> c
+            _ -> Color.white
+        in
+          ( { model | clickList = newClick :: model.clickList, count = model.count + 1, colorList = addColor color model.colorList}
+            -- Generate a size for the splatter
+          , (Random.generate (PickRadiusSplatter newClick) (Random.float 3 50)) ) --}
+        else
+          ( { model | clickList = newClick :: model.clickList, count = model.count + 1}
+            -- Generate a size for the splatter
+          , (Random.generate (PickRadiusSplatter newClick) (Random.float 3 50)) ) 
 
 
     -- Pick a random size for the splatter
