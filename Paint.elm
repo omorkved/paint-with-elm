@@ -59,6 +59,8 @@ type alias Model =
     , splatterList : List Splatter -- like clickList but also contains size of the splatter for each click. Head is most recent
     , colorList : List Color.Color -- List of colors in order of when they were generated
     , isDripping : Bool
+    , plainCircles : Bool
+    , raysInsteadOfBlobs : Bool
     }
 
 type Msg
@@ -68,6 +70,9 @@ type Msg
     | GetWindowSize Viewport
     | Frame Float -- For animation
     | ToggleDrip
+    | TogglePlainCircles
+    | ToggleRays
+    | ClearScreen
     --you should add stuff here.
 
 ---------------------------------------------------------
@@ -98,7 +103,9 @@ init flags =
     , clickList = []
     , splatterList = []
     , colorList = [Color.red, Color.orange, Color.yellow, Color.green, Color.blue, Color.purple, Color.brown]
-    , isDripping = True
+    , isDripping = False
+    , plainCircles = False
+    , raysInsteadOfBlobs = False
     }
     -- Fetch the window size
     , Task.perform GetWindowSize Browser.Dom.getViewport)
@@ -128,7 +135,19 @@ update msg model =
     ToggleDrip ->
       ( {model | isDripping = not model.isDripping}
       , Cmd.none)
+    
+    TogglePlainCircles ->
+      ( { count = model.count, viewport = model.viewport
+      , clickList = model.clickList, splatterList = model.splatterList
+      , colorList = model.colorList, isDripping = model.isDripping
+      -- These two change:
+      , plainCircles = not model.plainCircles
+      , raysInsteadOfBlobs = False
+      }, Cmd.none)
 
+    ToggleRays ->
+      ( {model | raysInsteadOfBlobs = not model.raysInsteadOfBlobs}
+      , Cmd.none)
 
     -- a ClickedPoint message gives us a potential coordinate for a new paint splatter
     ClickedPoint newClick ->
@@ -148,7 +167,7 @@ update msg model =
         -- Add this Point to the clickList
         ( { model | clickList = newClick :: model.clickList, count = model.count + 1 }
         -- Generate a random size for the splatter
-        , (Random.generate (PickRadiusSplatter newClick) (Random.float 3 50)) )
+        , (Random.generate (PickRadiusSplatter newClick) (Random.float 10 50)) )
 
 
     -- Pick a random size for the splatter
@@ -175,6 +194,8 @@ update msg model =
       , Cmd.none
       )
 
+    ClearScreen ->
+        ({model | splatterList = []}, Cmd.none)
 
     -- Credit: Learned how to update viewport from 
     -- https://discourse.elm-lang.org/t/browser-dom-getviewport-return-value/1990/2
@@ -234,15 +255,23 @@ placeOneSplatter model splat =
     -- Turn Paint dripping off here by toggling model.isDripping
     dripPaint model.isDripping x y splat.dripLength <|
 
-    rays False x y <|
-    case splat.blobID of
-    -- Probably can refactor this matching to make it nicer
-    -- I placed these functions in a new file (AllBlobs.elm)
-      1 -> blob1 x y r
-      2 -> blob2 x y r
-      3 -> blob3 x y r
-      4 -> blob4 x y r
-      _ -> blob5 x y r
+    
+    if model.raysInsteadOfBlobs then
+      -- Plots rays instead of blobs
+      rays True x y
+    else if model.plainCircles then
+      -- Plot boring plain circles instead of blobs
+      [circle (x, y) r]
+
+    else
+      case splat.blobID of
+      -- Probably can refactor this matching to make it nicer
+      -- I placed these functions in a new file (AllBlobs.elm)
+        1 -> blob1 x y r
+        2 -> blob2 x y r
+        3 -> blob3 x y r
+        4 -> blob4 x y r
+        _ -> blob5 x y r
       
 
 placeSplatter : Model -> Splatter -> Int -> Color.Color -> Renderable
@@ -278,4 +307,8 @@ view model =
             [ style "border" "10px solid rgba(0,0,0,0.1)"] --i haven't messed around with this line, feel free to!
             (List.map3 (placeSplatter model) model.splatterList (List.range 1 model.count) model.colorList)
         , button [Html.Events.onClick ToggleDrip] [ text "Toggle drip" ]
+        --, button [Html.Events.onClick Toggle____] [ text "Blobs" ]
+        , button [Html.Events.onClick ToggleRays] [ text "Rays" ]
+        , button [Html.Events.onClick TogglePlainCircles] [ text "Boring circles" ]
+        , button [Html.Events.onClick ClearScreen] [ text "Clear screen" ]
         ]
