@@ -23,15 +23,15 @@ import Platform
 import Task
 import Json.Decode as Decode
 import Random
-import Browser.Dom exposing (Viewport)
--- from original:
 import Browser
-import Browser.Events exposing (onAnimationFrameDelta, onMouseDown, onClick)
+import Browser.Dom exposing (Viewport)
+import Browser.Events exposing (onAnimationFrameDelta, onMouseDown)
 import Canvas exposing (rect, shapes, circle, Renderable, Point, Shape)
 import Canvas.Settings exposing (fill, Setting)
 import Canvas.Settings.Advanced exposing (rotate, transform, translate)
 import Color
-import Html exposing (Html, div)
+import Html exposing (Html, div, button, text)
+import Html.Events
 import Html.Attributes exposing (style)
 import Array
 ---------------------------------------------------------
@@ -58,14 +58,16 @@ type alias Model =
     , clickList : List Point -- Where they clicked. Head is most recent
     , splatterList : List Splatter -- like clickList but also contains size of the splatter for each click. Head is most recent
     , colorList : List Color.Color -- List of colors in order of when they were generated
+    , isDripping : Bool
     }
 
 type Msg
-    = ClickedPoint Point --handles clicks
+    = ClickedPoint Point --handles clicks.
     | PickRadiusSplatter Point Radius --handles the generator for the final radius for the splatter
     | PickWhichShape Point Radius BlobID --handles the generator for the ID of the blob
     | GetWindowSize Viewport
     | Frame Float -- For animation
+    | ToggleDrip
     --you should add stuff here.
 
 ---------------------------------------------------------
@@ -95,34 +97,58 @@ init flags =
     , viewport = Nothing
     , clickList = []
     , splatterList = []
-    , colorList = [Color.red, Color.orange, Color.yellow, Color.green, Color.blue, Color.purple, Color.brown]}
-    
+    , colorList = [Color.red, Color.orange, Color.yellow, Color.green, Color.blue, Color.purple, Color.brown]
+    , isDripping = True
+    }
     -- Fetch the window size
     , Task.perform GetWindowSize Browser.Dom.getViewport)
 
 
 -- For the animation
-growSplat : Splatter -> Splatter
-growSplat splat =
+growSplat : Model -> Splatter -> Splatter
+growSplat model splat =
     if splat.currRadius < splat.finalRadius then
       { splat | currRadius = splat.currRadius + 2 }
     else
-      { splat | dripLength = splat.dripLength + (0.005 * splat.finalRadius) }
+      if model.isDripping then
+        { splat | dripLength = splat.dripLength + (0.005 * splat.finalRadius) }
+      else 
+        splat
 
+---------------------------------------------------------
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    -- Animation: Makes radius grow in size
+    -- Animation: Makes radius grow in size or make paint drip lengthen
     Frame _ ->
-      ( {model | splatterList = (List.map growSplat model.splatterList)}
+      ( {model | splatterList = (List.map (growSplat model) model.splatterList)}
       , Cmd.none )
 
-    -- a ClickedPoint message gives us a new coordinate for a paint splatter
+    -- ToggleDrip turns "paint drip" effect on or off
+    ToggleDrip ->
+      ( {model | isDripping = not model.isDripping}
+      , Cmd.none)
+
+
+    -- a ClickedPoint message gives us a potential coordinate for a new paint splatter
     ClickedPoint newClick ->
+      -- Did they click into the actual canvas, or on another part of the screen:
+      let
+        x = Tuple.first newClick |> round
+        y = Tuple.second newClick |> round
+        (xScreen, yScreen) = 
+          case model.viewport of
+            Just viewport -> (round viewport.viewport.width, round viewport.viewport.height)
+            Nothing -> (800, 800)
+      in
+      if (x > canvasWidth xScreen) || (y > canvasHeight yScreen) then
+        -- They clicked outside of the paint canvas. Ignore
+        (model, Cmd.none)
+      else
         -- Add this Point to the clickList
-      ( { model | clickList = newClick :: model.clickList, count = model.count + 1 }
-        -- Generate a size for the splatter
-      , (Random.generate (PickRadiusSplatter newClick) (Random.float 3 50)) )
+        ( { model | clickList = newClick :: model.clickList, count = model.count + 1 }
+        -- Generate a random size for the splatter
+        , (Random.generate (PickRadiusSplatter newClick) (Random.float 3 50)) )
 
 
     -- Pick a random size for the splatter
@@ -155,6 +181,9 @@ update msg model =
     GetWindowSize viewport ->
         ({ model | viewport = Just viewport }, Cmd.none)
 
+-- End update function
+---------------------------------------------------------
+
 
 {-- Helper function for subscriptions:
     This maps the coordinates of the click, which are given
@@ -183,17 +212,18 @@ pointToMsg point =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-    [ onClick (Decode.map pointToMsg clickDecoder) -- React to clicks
+    [ Browser.Events.onClick (Decode.map pointToMsg clickDecoder) -- React to clicks
     , onAnimationFrameDelta Frame -- Animate splatters
     -- add stuff here
     ]
 
+-- End subscription and subscription helper fcns
 
--- helper function for view:
--- the goal of this function is to place a dot (for now) where we click
--- eventually this will put shapes that looks like a paint splatter instead of a dot
-placeOneSplatter : Splatter -> List Shape
-placeOneSplatter splat =
+---------------------------------------------------------
+-- helper functions for view:
+
+placeOneSplatter : Model -> Splatter -> List Shape
+placeOneSplatter model splat =
     let
       x = Tuple.first splat.loc
       y = Tuple.second splat.loc
@@ -201,8 +231,8 @@ placeOneSplatter splat =
       -- so that the animation works
       r = splat.currRadius
     in
-    -- Turn Paint dripping off Here
-    dripPaint True x y splat.dripLength <|
+    -- Turn Paint dripping off here by toggling model.isDripping
+    dripPaint model.isDripping x y splat.dripLength <|
 
     rays False x y <|
     case splat.blobID of
@@ -214,24 +244,17 @@ placeOneSplatter splat =
       4 -> blob4 x y r
       _ -> blob5 x y r
       
-    
-        
--- initially call this on model.clickList
---placeSplatters : List Splatter -> Int -> Renderable
---placeSplatters pts count =
+
+placeSplatter : Model -> Splatter -> Int -> Color.Color -> Renderable
+placeSplatter model pt i colors =
     -- The (map placeOneSplatter pts) call is: List Point -> List Shape
     -- so this allows us to use the built-in shapes function
-    --let c = colors
-    --Canvas.shapes [fill (Color.rgba 1 2 0 1)] (List.map placeOneSplatter pts)
-
-placeSplatter : Splatter -> Int -> Color.Color -> Renderable
-placeSplatter pt i colors =
-    -- The (map placeOneSplatter pts) call is: List Point -> List Shape
-    -- so this allows us to use the built-in shapes function
-    Canvas.shapes [fill colors] (placeOneSplatter pt)
+    Canvas.shapes [fill colors] (placeOneSplatter model pt)
 
 
-
+-- Feel free to play around with these wrappers:
+canvasWidth width = 3 * width // 4
+canvasHeight height = 7 * height // 8
 
 -- View:
 view : Model -> Html Msg
@@ -247,15 +270,12 @@ view model =
     in
     div
         [ style "display" "flex"
-        , style "justify-content" "center"
+        , style "justify-content" "flex-start" -- Keep this as flex-start (left-aligned fixes the click offset issue)
         , style "align-items" "center"
         ]
-        [  {-- this wasnt appearing- im trying something else
-                Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (List.length model.clickList))]
-            --}
-            Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (model.count))]
-        , Canvas.toHtml
-            (width, height)
-            [ style "border" "1000px solid rgba(0,0,0,0.1)"] --i haven't messed around with this line, feel free to!
-            (List.map3 placeSplatter model.splatterList (List.range 1 model.count) model.colorList)
+        [ Canvas.toHtml
+            (canvasWidth width, canvasHeight height)
+            [ style "border" "10px solid rgba(0,0,0,0.1)"] --i haven't messed around with this line, feel free to!
+            (List.map3 (placeSplatter model) model.splatterList (List.range 1 model.count) model.colorList)
+        , button [Html.Events.onClick ToggleDrip] [ text "Toggle drip" ]
         ]
