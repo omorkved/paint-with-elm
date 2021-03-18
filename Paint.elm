@@ -89,6 +89,8 @@ type Msg
     | ToggleRays
     | ClearScreen
     | Explode Int Int
+    | EraseNewest
+    | EraseOldest
     --you should add stuff here.
 
 ---------------------------------------------------------
@@ -281,6 +283,25 @@ update msg model =
     ClearScreen ->
         (clearShapes model, Cmd.none)
         --init ()
+
+
+    -- Erase commands: Take advantage of the power of deques. User can erase one splatter, either the
+    -- oldest or the newest created one.
+    EraseNewest ->
+      ({ model | splatterList = 
+        case Deque.removeBack model.splatterList of
+          Just deq -> deq
+          Nothing -> Deque.empty
+      }
+      , Cmd.none)
+
+    EraseOldest ->
+      ({ model | splatterList = 
+        case Deque.removeFront model.splatterList  of
+          Just deq -> deq
+          Nothing -> Deque.empty
+      }    
+      , Cmd.none)
 
     -- Credit: Learned how to update viewport from 
     -- https://discourse.elm-lang.org/t/browser-dom-getviewport-return-value/1990/2
@@ -509,7 +530,7 @@ view model =
           [ viewPreview "https://davinstudios.com/sitebuilder/images/Original_Splash_With_Drips_10-31-16-642x209.png" 
           , Html.p [fontsize, othercolor] [text "Your current mix:"]
           , Html.p [fontsize, othercolor] [text currentColorMix]
-          , text ("len colorList: " ++ Debug.toString (List.length (Deque.squishToList model.colorList)))
+          , text ("len splatterList: " ++ Debug.toString (List.length (Deque.squishToList model.splatterList)))
           , button [fontsize, noborder, h, w, textcolor, r, Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
           , button [noborder, h, w, textcolor,o, Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
           , button [noborder, h, w, textcolor,y, Html.Events.onClick (PickColor Color.yellow)] [ text "Yellow" ]
@@ -519,9 +540,9 @@ view model =
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleDrip] [ text "Toggle drip" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRays] [ text rays ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick TogglePlainCircles] [ text boringCircles ]
-          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRotate] [ text "Arcs" ]
-          --, button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick EraseOldest] [ text "Erase oldest" ]
-          --, button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick EraseNewest] [ text "Erase newest" ]
+          --, button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRotate] [ text "Arcs" ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick EraseOldest] [ text "Erase oldest" ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick EraseNewest] [ text "Erase newest" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick (Explode width height)] [ text "Explode" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ClearScreen] [ text "Clear screen" ]
           ]
