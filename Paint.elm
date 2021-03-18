@@ -85,16 +85,9 @@ type Msg
     --you should add stuff here.
 
 ---------------------------------------------------------
--- Flags
-
--- Add more flags here:
-type alias Flags =
-    Int --passing in date for now
-    -- jk { windowWidth : Int }
----------------------------------------------------------
 -- Code
 
-main : Program Flags Model Msg
+main : Program () Model Msg
 main =
     Browser.element
         { init = init
@@ -103,8 +96,8 @@ main =
         , subscriptions = subscriptions
         }
 
-init : Flags -> ( Model, Cmd Msg )
-init flags =
+init : () -> ( Model, Cmd Msg )
+init () =
     --right now, not doing anything with flags.
 
     ({ count = 0
@@ -154,9 +147,10 @@ update msg model =
       , raysInsteadOfBlobs = False
       }, Cmd.none)
 
+    -- ToggleRays switches whether we are painting with rays or not.
+    -- Always clear the screen when we switch between rays and blobs, to make it look nicer
     ToggleRays ->
-      ( {model | raysInsteadOfBlobs = not model.raysInsteadOfBlobs}
-      , Cmd.none)
+      update ClearScreen {model | raysInsteadOfBlobs = not model.raysInsteadOfBlobs}
 
     -- a ClickedPoint message gives us a potential coordinate for a new paint splatter
     ClickedPoint newClick ->
@@ -208,7 +202,7 @@ update msg model =
       ({ model | colorList = addColor color model.colorList }, Cmd.none)
       
     ClearScreen ->
-        init 1--({model | splatterList = []}, Cmd.none)
+        init ()
 
     -- Credit: Learned how to update viewport from 
     -- https://discourse.elm-lang.org/t/browser-dom-getviewport-return-value/1990/2
@@ -217,7 +211,7 @@ update msg model =
 
 -- End update function
 ---------------------------------------------------------
-
+-- Subscriptions (and relevant helper functions)
 
 {-- Helper function for subscriptions:
     This maps the coordinates of the click, which are given
@@ -246,9 +240,11 @@ pointToMsg point =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-    [ Browser.Events.onClick (Decode.map pointToMsg clickDecoder) -- React to clicks
-    , onAnimationFrameDelta Frame -- Animate splatters
-    -- add stuff here
+    -- React to clicks into the canvas
+    [ Browser.Events.onClick (Decode.map pointToMsg clickDecoder) 
+
+    -- Allows for animation (of splatter size and of drips)
+    , onAnimationFrameDelta Frame
     ]
 
 -- End subscription and subscription helper fcns
@@ -256,6 +252,9 @@ subscriptions model =
 ---------------------------------------------------------
 -- helper functions for view:
 
+--place one splatter produces the visualization that corresponds
+-- to one specific click.
+-- This vis may be: a circle, a blob, a ray, and with or without paint dripping
 placeOneSplatter : Model -> Splatter -> List Shape
 placeOneSplatter model splat =
     let
@@ -264,26 +263,25 @@ placeOneSplatter model splat =
       -- Note we use the current radius (not the final radius)
       -- so that the animation works
       r = splat.currRadius
+      drip = (dripPaint model.isDripping x y splat.dripLength)
     in
-    -- Turn Paint dripping off here by toggling model.isDripping
-    dripPaint model.isDripping x y splat.dripLength <|
-
     if model.raysInsteadOfBlobs then
       -- Plots rays instead of blobs
       rays True x y
-    else if model.plainCircles then
-      -- Plot boring plain circles instead of blobs
-      [circle (x, y) r]
-
     else
-      case splat.blobID of
-      -- Probably can refactor this matching to make it nicer
-      -- I placed these functions in a new file (AllBlobs.elm)
-        1 -> blob1 x y r
-        2 -> blob2 x y r
-        3 -> blob3 x y r
-        4 -> blob4 x y r
-        _ -> blob5 x y r
+      -- Optional "paint dripping" effect
+      drip ::
+      if model.plainCircles then
+        -- Plot boring plain circles instead of blobs
+        [circle (x, y) r]
+      else
+        --Plot fun blobs
+        case splat.blobID of
+          1 -> blob1 x y r
+          2 -> blob2 x y r
+          3 -> blob3 x y r
+          4 -> blob4 x y r
+          _ -> blob5 x y r
       
 
 placeSplatter : Model -> Splatter -> Int -> Color.Color -> Renderable
@@ -317,7 +315,7 @@ mixColors (index, oColor) mixColor =
 
 
 
--- Feel free to play around with these wrappers:
+-- Wrappers for width and height
 canvasWidth width = 3 * width // 4
 canvasHeight height = 7 * height // 8
 

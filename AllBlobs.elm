@@ -11,20 +11,19 @@ type alias Radius = Float
 blob1 : Float -> Float -> Radius -> List Shape
 blob1 x y r = 
   [ circle (x, y) r
-  , circle (x - (r * 2/3), y) (r/2)
-  , circle (x - (r * 1/12), y - (13*r/16)) (1*r/3)
-  , circle (x + (r * 3/4), y + (5*r/8)) (1*r/5)
-  , circle (x + (r * 11/12), y + (3*r/4)) (1*r/3)
+  , circle (x - (r * 2/3), y) (2*r/3)
+  , circle (x + (r * 4/5), y + (3*r/8)) (1*r/2)
+  , circle (x + (8*r/9), y - (1*r/8)) (1*r/2)
   ]
 
 
 blob2 : Float -> Float -> Radius -> List Shape
 blob2 x y r = 
   [ circle (x, y) r
-  , circle (x + (r * 2/3), y) (r/2)
+  , circle (x + (r * 3/5), y) (r/2)
   , circle (x + (r * 1/12), y - (5*r/8)) (2*r/3)
   , circle (x - (r * 1/12), y - (7*r/8)) (2*r/3)
-  , circle (x - (r * 3/4), y - (7*r/8)) (2*r/3)
+  , circle (x - (r * 1/2), y - (7*r/8)) (2*r/3)
   ]
 
 blob3 : Float -> Float -> Radius -> List Shape
@@ -45,10 +44,10 @@ blob5 : Float -> Float -> Radius -> List Shape
 blob5 x y r = 
   [ circle (x, y) r
   , circle (x + (3*r/4), y) (7*r/8)
-  , circle (x - (5*r/7), y) (r/2)
-  , circle (x - (5*r/7), y + (4*r/5)) (r/3)
-  , circle (x - (9*r/7), y) (r/2)
-  , circle (x - (8*r/7), y + (r/3)) (r/3)
+  , circle (x - (5*r/7), y + r) (r/2)
+  , circle (x - (4*r/7), y + r) (r/2)
+  , circle (x - (2*r/7), y + r) (r/2)
+  , circle (x, y + r) (r/2)
   ]
 
 
@@ -68,18 +67,12 @@ rays bool x y =
 
 
 -- make it drip paint
-dripPaint : Bool -> Float -> Float -> Radius -> List Shape -> List Shape
-dripPaint bool x y r blob =
+dripPaint : Bool -> Float -> Float -> Radius -> Shape
+dripPaint bool x y r =
   if bool then
-    List.append blob
-    [ path ( x, y )
-        [ lineTo ( x , y + (4*r) )
-        , lineTo ( x + 5, y + (4*r))
-        , lineTo ( x + 5 , y )
-        ]
-    ]
-    else blob
-
-
---clearEverything =
---  clear ( 0, 0 ) width height
+    path ( x, y )
+      [ lineTo ( x , y + (4*r) )
+      , lineTo ( x + 5, y + (4*r))
+      , lineTo ( x + 5 , y )
+      ]
+    else circle (x, y) 0 -- no drip effect
