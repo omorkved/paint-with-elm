@@ -28,7 +28,8 @@ import Browser.Dom exposing (Viewport)
 import Browser.Events exposing (onAnimationFrameDelta, onMouseDown)
 import Canvas exposing (rect, shapes, circle, Renderable, Point, Shape)
 import Canvas.Settings exposing (fill, Setting)
-import Canvas.Settings.Advanced exposing (rotate, transform, translate)
+import Canvas.Settings.Advanced exposing (rotate, transform
+  , translate, GlobalCompositeOperationMode(..), compositeOperationMode)
 import Color
 import Html exposing (Html, div, button, text)
 import Html.Events
@@ -67,6 +68,8 @@ type alias Model =
     , splatterList : List Splatter -- like clickList but also contains size of the splatter for each click. Head is most recent
     , colorList : List Color.Color -- List of colors in order of when they were generated
     , isDripping : Bool
+    , isRotating : Bool
+    , degreesRotate : Float
     , plainCircles : Bool
     , raysInsteadOfBlobs : Bool
     }
@@ -79,6 +82,7 @@ type Msg
     | Frame Float -- For animation
     | PickColor Color.Color
     | ToggleDrip
+    | ToggleRotate
     | TogglePlainCircles
     | ToggleRays
     | ClearScreen
@@ -106,6 +110,8 @@ init () =
     , splatterList = []
     , colorList = []
     , isDripping = False
+    , isRotating = False
+    , degreesRotate = 0
     , plainCircles = False
     , raysInsteadOfBlobs = False
     }
@@ -130,18 +136,31 @@ update msg model =
   case msg of
     -- Animation: Makes radius grow in size or make paint drip lengthen
     Frame _ ->
-      ( {model | splatterList = (List.map (growSplat model) model.splatterList)}
+      ( { count = model.count, viewport = model.viewport
+      , clickList = model.clickList, raysInsteadOfBlobs = model.raysInsteadOfBlobs
+      , colorList = model.colorList, isDripping = model.isDripping
+      , isRotating = model.isRotating, plainCircles = model.plainCircles
+
+        -- These two things change:
+      , degreesRotate = model.degreesRotate + 1
+      ,  splatterList = (List.map (growSplat model) model.splatterList)}
       , Cmd.none )
 
     -- ToggleDrip turns "paint drip" effect on or off
     ToggleDrip ->
       ( {model | isDripping = not model.isDripping}
       , Cmd.none)
+
+    ToggleRotate ->
+      ( {model | isRotating = not model.isRotating}
+      , Cmd.none)
+
     
     TogglePlainCircles ->
       ( { count = model.count, viewport = model.viewport
       , clickList = model.clickList, splatterList = model.splatterList
       , colorList = model.colorList, isDripping = model.isDripping
+      , isRotating = model.isRotating, degreesRotate = model.degreesRotate
       -- These two change:
       , plainCircles = not model.plainCircles
       , raysInsteadOfBlobs = False
@@ -150,7 +169,10 @@ update msg model =
     -- ToggleRays switches whether we are painting with rays or not.
     -- Always clear the screen when we switch between rays and blobs, to make it look nicer
     ToggleRays ->
-      update ClearScreen {model | raysInsteadOfBlobs = not model.raysInsteadOfBlobs}
+      let
+        clearScreenFirst = update ClearScreen model
+      in
+      ({model | raysInsteadOfBlobs = not model.raysInsteadOfBlobs}, Tuple.second clearScreenFirst)
 
     -- a ClickedPoint message gives us a potential coordinate for a new paint splatter
     ClickedPoint newClick ->
@@ -252,6 +274,17 @@ subscriptions model =
 ---------------------------------------------------------
 -- helper functions for view:
 
+maybeRenderSpin : Model -> Shape -> Setting
+maybeRenderSpin model blob =
+    let
+        rotation = 
+          if model.isRotating then degrees (model.degreesRotate * 3)
+          else degrees 0
+        
+    in
+    transform [rotate rotation]
+
+
 --place one splatter produces the visualization that corresponds
 -- to one specific click.
 -- This vis may be: a circle, a blob, a ray, and with or without paint dripping
@@ -264,6 +297,7 @@ placeOneSplatter model splat =
       -- so that the animation works
       r = splat.currRadius
       drip = (dripPaint model.isDripping x y splat.dripLength)
+
     in
     if model.raysInsteadOfBlobs then
       -- Plots rays instead of blobs
@@ -276,6 +310,7 @@ placeOneSplatter model splat =
         [circle (x, y) r]
       else
         --Plot fun blobs
+
         case splat.blobID of
           1 -> blob1 x y r
           2 -> blob2 x y r
@@ -288,7 +323,8 @@ placeSplatter : Model -> Splatter -> Int -> Color.Color -> Renderable
 placeSplatter model pt i colors =
     -- The (map placeOneSplatter pts) call is: List Point -> List Shape
     -- so this allows us to use the built-in shapes function
-    Canvas.shapes [fill colors] (placeOneSplatter model pt)
+    Canvas.shapes [fill colors, (maybeRenderSpin model)--, compositeOperationMode Saturation
+    ] (placeOneSplatter model pt)
 
 -- add a new color to colorList and modify the rest of the colorlist
 addColor : Color.Color -> List Color.Color -> List Color.Color
@@ -397,6 +433,7 @@ view model =
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleDrip] [ text "Toggle drip" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRays] [ text "Rays" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick TogglePlainCircles] [ text "Boring circles" ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRotate] [ text "Arcs" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ClearScreen] [ text "Clear screen" ]
           ]
         ]
