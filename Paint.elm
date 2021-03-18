@@ -72,6 +72,7 @@ type alias Model =
     , degreesRotate : Float
     , plainCircles : Bool
     , raysInsteadOfBlobs : Bool
+    , explode : Bool
     }
 
 type Msg
@@ -86,6 +87,7 @@ type Msg
     | TogglePlainCircles
     | ToggleRays
     | ClearScreen
+    | Explode Int Int
     --you should add stuff here.
 
 ---------------------------------------------------------
@@ -114,6 +116,7 @@ init () =
     , degreesRotate = 0
     , plainCircles = False
     , raysInsteadOfBlobs = False
+    , explode = False
     }
     -- Fetch the window size
     , Task.perform GetWindowSize Browser.Dom.getViewport)
@@ -140,6 +143,9 @@ clearShapes model =
     -- dump the shapes
     , clickList = []
     , splatterList = []
+    , explode = False
+    , isRotating = False
+    , degreesRotate = 0
     -- preserve the most recently picked color
     , colorList = 
       case List.head model.colorList of
@@ -148,14 +154,19 @@ clearShapes model =
 
     -- preserve the current settings
     , isDripping = model.isDripping
-    , isRotating = model.isRotating
-    , degreesRotate = model.degreesRotate
     , plainCircles = model.plainCircles
     , raysInsteadOfBlobs = model.raysInsteadOfBlobs
     }
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
+  let
+    (xScreen, yScreen) = 
+      case model.viewport of
+        Just viewport -> (round viewport.viewport.width, round viewport.viewport.height)
+        Nothing -> (800, 800)
+  in
+
   case msg of
     -- Animation: Makes radius grow in size or make paint drip lengthen
     Frame _ ->
@@ -163,11 +174,21 @@ update msg model =
       , clickList = model.clickList, raysInsteadOfBlobs = model.raysInsteadOfBlobs
       , colorList = model.colorList, isDripping = model.isDripping
       , isRotating = model.isRotating, plainCircles = model.plainCircles
+      , explode = model.explode
 
         -- These two things change:
       , degreesRotate = model.degreesRotate + 1
       ,  splatterList = (List.map (growSplat model) model.splatterList)}
-      , Cmd.none )
+
+      -- generate a cmd
+      , if model.explode then
+      -- generate a phantom click 
+       Random.generate 
+       ClickedPoint 
+       (Random.pair (Random.float 0 (canvasWidth xScreen |> toFloat))
+       (Random.float 0 (canvasHeight yScreen |> toFloat)))
+      else Cmd.none 
+      )
 
     -- ToggleDrip turns "paint drip" effect on or off
     ToggleDrip ->
@@ -191,6 +212,7 @@ update msg model =
       , clickList = newModel.clickList, splatterList = newModel.splatterList
       , colorList = newModel.colorList, isDripping = newModel.isDripping
       , isRotating = newModel.isRotating, degreesRotate = newModel.degreesRotate
+      , explode = newModel.explode
       -- These two settings change:
       , plainCircles = not newModel.plainCircles
       , raysInsteadOfBlobs = False
@@ -204,16 +226,17 @@ update msg model =
       in
       ({newModel | raysInsteadOfBlobs = not model.raysInsteadOfBlobs}, Cmd.none)
 
+
+    Explode width height ->
+      ({model | explode = True}
+      , Cmd.none)
+      
     -- a ClickedPoint message gives us a potential coordinate for a new paint splatter
     ClickedPoint newClick ->
       -- Did they click into the actual canvas, or on another part of the screen:
       let
         x = Tuple.first newClick |> round
         y = Tuple.second newClick |> round
-        (xScreen, yScreen) = 
-          case model.viewport of
-            Just viewport -> (round viewport.viewport.width, round viewport.viewport.height)
-            Nothing -> (800, 800)
       in
       if (x > canvasWidth xScreen) || (y > canvasHeight yScreen) then
         -- They clicked outside of the paint canvas. Ignore
@@ -229,7 +252,7 @@ update msg model =
     PickRadiusSplatter loc finalRadius ->
       -- Dont update the model just yet! We want another cmd to generate a random blobID first.
       ( model
-      , Random.generate (PickWhichShape loc finalRadius) (Random.int 1 1)
+      , Random.generate (PickWhichShape loc finalRadius) (Random.int 1 5)
       )
 
 
@@ -494,6 +517,7 @@ view model =
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRays] [ text rays ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick TogglePlainCircles] [ text boringCircles ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRotate] [ text "Arcs" ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick (Explode width height)] [ text "Explode" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ClearScreen] [ text "Clear screen" ]
           ]
         ]
