@@ -41,6 +41,10 @@ import Element.Input as Input
 ---------------------------------------------------------
 -- Types
 
+-- -- Set page title? --- haha nope
+-- port title : String
+-- port title = "The page title"
+
 -- jk don't do this cuz Canvas has a built-in point type.
 --type alias Point = { x : Float, y : Float }
 
@@ -172,14 +176,14 @@ update msg model =
         -- Add this Point to the clickList
         ( { model | clickList = newClick :: model.clickList, count = model.count + 1 }
         -- Generate a random size for the splatter
-        , (Random.generate (PickRadiusSplatter newClick) (Random.float 10 50)) )
+        , (Random.generate (PickRadiusSplatter newClick) (Random.float 30 50)) )
 
 
     -- Pick a random size for the splatter
     PickRadiusSplatter loc finalRadius ->
       -- Dont update the model just yet! We want another cmd to generate a random blobID first.
       ( model
-      , Random.generate (PickWhichShape loc finalRadius) (Random.int 1 5)
+      , Random.generate (PickWhichShape loc finalRadius) (Random.int 1 1)
       )
 
 
@@ -204,7 +208,7 @@ update msg model =
       ({ model | colorList = addColor color model.colorList }, Cmd.none)
       
     ClearScreen ->
-        ({model | splatterList = []}, Cmd.none)
+        init 1--({model | splatterList = []}, Cmd.none)
 
     -- Credit: Learned how to update viewport from 
     -- https://discourse.elm-lang.org/t/browser-dom-getviewport-return-value/1990/2
@@ -317,6 +321,22 @@ mixColors (index, oColor) mixColor =
 canvasWidth width = 3 * width // 4
 canvasHeight height = 7 * height // 8
 
+
+-- Code taken from https://elm-lang.org/examples/image-previews
+viewPreview : String -> Html msg
+viewPreview url =
+  div
+    [ style "display" "flex"
+    , style "justify-content" "flex-start" 
+    , style "width" "200px"
+    , style "height" "50px"
+    , style "background-image" ("url('" ++ url ++ "')")
+    , style "background-position" "top"
+    , style "background-repeat" "no-repeat"
+    , style "background-size" "contain"
+    ]
+    []
+
 -- View:
 view : Model -> Html Msg
 view model =
@@ -328,6 +348,16 @@ view model =
             Just viewport ->
                 (round viewport.viewport.width
                 , round viewport.viewport.height)
+      r = style "backgroundColor" "red"
+      o = style "backgroundColor" "orange"
+      y = style "backgroundColor" "yellow"
+      g = style "backgroundColor" "green"
+      b = style "backgroundColor" "blue"
+      p = style "backgroundColor" "purple"
+      textcolor = style "color" "white"
+      noborder = style "border" "0px solid rgba(0,250,200,1)"
+      h = style "width" "200px"
+      w = style "height" "100px"
     in
     div
         [ style "display" "flex"
@@ -342,13 +372,18 @@ view model =
             [ style "border" "10px solid rgba(0,0,0,0.1)"] --i haven't messed around with this line, feel free to!
             (List.map3 (placeSplatter model) model.splatterList (List.range 1 model.count) model.colorList)
         , div 
-              [style "border" "1px solid rgba(1,1,0,0.1)"] 
-          [ button [Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
-          , button [Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
-          , button [Html.Events.onClick (PickColor Color.yellow)] [ text "Yellow" ]
-          , button [Html.Events.onClick (PickColor Color.green)] [ text "Green" ]
-          , button [Html.Events.onClick (PickColor Color.blue)] [ text "Blue" ]
-          , button [Html.Events.onClick (PickColor Color.purple)] [ text "Purple" ]
+              [style "border" "15px solid rgba(0,250,200,1)"
+              , style "backgroundColor" "rgba(0,250,200,.5)"
+              , style "width" "200px"
+              , style "height" (String.fromInt (height - 20) ++ "px")
+              ]
+          [ viewPreview "https://davinstudios.com/sitebuilder/images/Original_Splash_With_Drips_10-31-16-642x209.png" 
+          , button [noborder, h, w, textcolor, r, Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
+          , button [noborder, h, w,textcolor,o, Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
+          , button [noborder, h, w,textcolor,y, Html.Events.onClick (PickColor Color.yellow)] [ text "Yellow" ]
+          , button [noborder, h, w,textcolor,g, Html.Events.onClick (PickColor Color.green)] [ text "Green" ]
+          , button [noborder, h, w,textcolor,b, Html.Events.onClick (PickColor Color.blue)] [ text "Blue" ]
+          , button [noborder, h, w,textcolor,p, Html.Events.onClick (PickColor Color.purple)] [ text "Purple" ]
           , button [Html.Events.onClick ToggleDrip] [ text "Toggle drip" ]
           , button [Html.Events.onClick ToggleRays] [ text "Rays" ]
           , button [Html.Events.onClick TogglePlainCircles] [ text "Boring circles" ]
