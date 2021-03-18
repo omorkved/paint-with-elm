@@ -446,9 +446,18 @@ view model =
       boringCircles = if model.plainCircles then "Go back to blobs" else "Normal circles please"
 
       -- Report the current mix:
+      printRGBNicely rgb =
+        String.slice 0 4 (Debug.toString rgb)
+
       currentColorMix = 
         case List.head model.colorList of
-          Just currColor -> "Your current mix: " ++ Color.toCssString currColor
+          Just currColor -> 
+            let colorDict = Color.toRgba currColor
+            in
+            "R: " ++ printRGBNicely colorDict.red
+            ++ " G: " ++ printRGBNicely colorDict.green
+            ++ " B : " ++ printRGBNicely colorDict.blue
+
           Nothing -> "Select a color to begin"
 
     in
@@ -473,7 +482,8 @@ view model =
               , style "height" (String.fromInt (height - 95) ++ "px")
               ]
           [ viewPreview "https://davinstudios.com/sitebuilder/images/Original_Splash_With_Drips_10-31-16-642x209.png" 
-          , Html.p [fontsize] [text currentColorMix]
+          , Html.p [fontsize, othercolor] [text "Your current mix:"]
+          , Html.p [fontsize, othercolor] [text currentColorMix]
           , button [fontsize, noborder, h, w, textcolor, r, Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
           , button [noborder, h, w, textcolor,o, Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
           , button [noborder, h, w, textcolor,y, Html.Events.onClick (PickColor Color.yellow)] [ text "Yellow" ]
