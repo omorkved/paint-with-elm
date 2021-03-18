@@ -132,13 +132,21 @@ growSplat model splat =
 
 ---------------------------------------------------------
 
+-- Call this function when the user wants to clear the scren
 clearShapes : Model -> Model
 clearShapes model =
     { count = 0
     , viewport = model.viewport
+    -- dump the shapes
     , clickList = []
     , splatterList = []
-    , colorList = []
+    -- preserve the most recently picked color
+    , colorList = 
+      case List.head model.colorList of
+        Just color -> [color]
+        Nothing -> []
+
+    -- preserve the current settings
     , isDripping = model.isDripping
     , isRotating = model.isRotating
     , degreesRotate = model.degreesRotate
@@ -242,7 +250,8 @@ update msg model =
       ({ model | colorList = addColor color model.colorList }, Cmd.none)
       
     ClearScreen ->
-        init ()
+        (clearShapes model, Cmd.none)
+        --init ()
 
     -- Credit: Learned how to update viewport from 
     -- https://discourse.elm-lang.org/t/browser-dom-getviewport-return-value/1990/2
@@ -416,7 +425,7 @@ view model =
       textcolor = style "color" "white"
       noborder = style "border" "0px solid rgba(0,250,200,1)"
       w = style "width" "200px"
-      h = style "height" "80px"
+      h = style "height" "50px"--"80px"
       h2 = style "height" "38px"
       fontsize = style "font" "Comic sans MS"
       otherbackground = style "backgroundColor" "rgba(0, 0, 0, 0)"
