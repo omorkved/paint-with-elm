@@ -68,6 +68,7 @@ type alias Model =
     , splatterList : List Splatter -- like clickList but also contains size of the splatter for each click. Head is most recent
     , colorList : List Color.Color -- List of colors in order of when they were generated
     , isDripping : Bool
+    , isActuallyDripping : Bool
     , isRotating : Bool
     , degreesRotate : Float
     , plainCircles : Bool
@@ -112,6 +113,7 @@ init () =
     , splatterList = []
     , colorList = []
     , isDripping = False
+    , isActuallyDripping = False
     , isRotating = False
     , degreesRotate = 0
     , plainCircles = False
@@ -147,13 +149,11 @@ clearShapes model =
     , isRotating = False
     , degreesRotate = 0
     -- preserve the most recently picked color
-    , colorList = 
-      case List.head model.colorList of
-        Just color -> [color]
-        Nothing -> []
+    , colorList = []
 
     -- preserve the current settings
     , isDripping = model.isDripping
+    , isActuallyDripping = model.isActuallyDripping
     , plainCircles = model.plainCircles
     , raysInsteadOfBlobs = model.raysInsteadOfBlobs
     }
@@ -172,7 +172,8 @@ update msg model =
     Frame _ ->
       ( { count = model.count, viewport = model.viewport
       , clickList = model.clickList, raysInsteadOfBlobs = model.raysInsteadOfBlobs
-      , colorList = model.colorList, isDripping = model.isDripping
+      , colorList = model.colorList, isDripping = (not model.isDripping)
+      , isActuallyDripping = model.isDripping && model.isActuallyDripping
       , isRotating = model.isRotating, plainCircles = model.plainCircles
       , explode = model.explode
 
@@ -192,7 +193,7 @@ update msg model =
 
     -- ToggleDrip turns "paint drip" effect on or off
     ToggleDrip ->
-      ( {model | isDripping = not model.isDripping}
+      ( {model | isActuallyDripping = not model.isActuallyDripping}
       , Cmd.none)
 
     ToggleRotate ->
@@ -211,6 +212,7 @@ update msg model =
       ( { count = newModel.count, viewport = newModel.viewport
       , clickList = newModel.clickList, splatterList = newModel.splatterList
       , colorList = newModel.colorList, isDripping = newModel.isDripping
+      , isActuallyDripping = newModel.isActuallyDripping
       , isRotating = newModel.isRotating, degreesRotate = newModel.degreesRotate
       , explode = newModel.explode
       -- These two settings change:
@@ -274,7 +276,7 @@ update msg model =
 
     -- Chose a color and add to list of colors
     PickColor color -> 
-      ({ model | colorList = addColor color model.colorList }, Cmd.none)
+      ({ model | colorList = addColor color model.colorList}, Cmd.none)
       
     ClearScreen ->
         (clearShapes model, Cmd.none)
@@ -452,8 +454,8 @@ view model =
       textcolor = style "color" "white"
       noborder = style "border" "0px solid rgba(0,250,200,1)"
       w = style "width" "200px"
-      h = style "height" "50px"--"80px"
-      h2 = style "height" "38px"
+      h = style "height" "63px"--"80px"
+      h2 = style "height" "37px"
       fontsize = style "font" "Comic sans MS"
       otherbackground = style "backgroundColor" "rgba(0, 0, 0, 0)"
 
@@ -473,7 +475,7 @@ view model =
         String.slice 0 4 (Debug.toString rgb)
 
       currentColorMix = 
-        case List.head model.colorList of
+        case List.head (List.reverse model.colorList) of
           Just currColor -> 
             let colorDict = Color.toRgba currColor
             in
@@ -502,10 +504,10 @@ view model =
               [style "border" ("15px solid rgba(" ++ (String.fromFloat (basecolor.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor.green)) ++ ", "++ (String.fromFloat (250 * basecolor.blue)) ++ ", " ++ (String.fromFloat 0.5) ++ ")")
               , style "backgroundColor" ("rgba(" ++ (String.fromFloat (basecolor.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor.green)) ++ ", "++ (String.fromFloat (250 * basecolor.blue)) ++ ", " ++ (String.fromFloat 0.2) ++ ")")
               , style "width" "200px"
-              , style "height" (String.fromInt (height - 95) ++ "px")
+              , style "height" (String.fromInt (canvasHeight height + 3) ++ "px")
               ]
           [ viewPreview "https://davinstudios.com/sitebuilder/images/Original_Splash_With_Drips_10-31-16-642x209.png" 
-          , Html.p [fontsize, othercolor] [text "Your current mix:"]
+          , Html.p [fontsize, othercolor] [text "Your final mix:"]
           , Html.p [fontsize, othercolor] [text currentColorMix]
           , button [fontsize, noborder, h, w, textcolor, r, Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
           , button [noborder, h, w, textcolor,o, Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
@@ -513,10 +515,10 @@ view model =
           , button [noborder, h, w, textcolor,g, Html.Events.onClick (PickColor Color.green)] [ text "Green" ]
           , button [noborder, h, w, textcolor,b, Html.Events.onClick (PickColor Color.blue)] [ text "Blue" ]
           , button [noborder, h, w, textcolor,p, Html.Events.onClick (PickColor Color.purple)] [ text "Purple" ]
-          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleDrip] [ text "Toggle drip" ]
+          --, button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleDrip] [ text "Toggle drip" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRays] [ text rays ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick TogglePlainCircles] [ text boringCircles ]
-          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRotate] [ text "Arcs" ]
+          --, button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRotate] [ text "Arcs" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick (Explode width height)] [ text "Explode" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ClearScreen] [ text "Clear screen" ]
           ]
