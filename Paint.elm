@@ -111,7 +111,7 @@ init flags =
     , viewport = Nothing
     , clickList = []
     , splatterList = []
-    , colorList = [Color.blue]
+    , colorList = []
     , isDripping = False
     , plainCircles = False
     , raysInsteadOfBlobs = False
@@ -304,7 +304,7 @@ mixColors : (Int, Color.Color) -> Color.Color -> Color.Color
 mixColors (index, oColor) mixColor =
   let c1 = Color.toRgba oColor
       c2 = Color.toRgba mixColor
-      i = (toFloat index) + 1
+      i = (toFloat index) + 2
       j = i - 1
   in 
     let r = ((j * c1.red) + c2.red)/i
@@ -328,10 +328,10 @@ viewPreview url =
   div
     [ style "display" "flex"
     , style "justify-content" "flex-start" 
-    , style "width" "200px"
-    , style "height" "50px"
+    , style "width" "700px"
+    , style "height" "60px"
     , style "background-image" ("url('" ++ url ++ "')")
-    , style "background-position" "top"
+    , style "background-position" "left"
     , style "background-repeat" "no-repeat"
     , style "background-size" "contain"
     ]
@@ -348,16 +348,28 @@ view model =
             Just viewport ->
                 (round viewport.viewport.width
                 , round viewport.viewport.height)
-      r = style "backgroundColor" "red"
-      o = style "backgroundColor" "orange"
-      y = style "backgroundColor" "yellow"
-      g = style "backgroundColor" "green"
-      b = style "backgroundColor" "blue"
-      p = style "backgroundColor" "purple"
+      basecolor = 
+        case List.head model.colorList of 
+          Just color -> Color.toRgba color
+          _ -> Color.toRgba Color.white
+      basecolor2 = if basecolor == (Color.toRgba Color.white)
+                    then Color.toRgba Color.black
+                    else basecolor
+      r = style "backgroundColor" "rgb(204, 0, 0)"
+      o = style "backgroundColor" "rgb(245, 121, 0)"
+      y = style "backgroundColor" "rgb(237, 212, 0)"
+      g = style "backgroundColor" "rgb(115, 210,  22)"
+      b = style "backgroundColor" "rgb(52, 101, 164)"
+      p = style "backgroundColor" "rgb(117,  80, 123)"
       textcolor = style "color" "white"
       noborder = style "border" "0px solid rgba(0,250,200,1)"
-      h = style "width" "200px"
-      w = style "height" "100px"
+      w = style "width" "200px"
+      h = style "height" "80px"
+      h2 = style "height" "38px"
+      fontsize = style "font" "Comic sans MS"
+      otherbackground = style "backgroundColor" "rgba(0, 0, 0, 0)"
+    in
+    let othercolor = style "color" ("rgba(" ++ (String.fromFloat (basecolor2.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor2.green)) ++ ", "++ (String.fromFloat (250 * basecolor2.blue)) ++ ", " ++ (String.fromFloat 1) ++ ")")
     in
     div
         [ style "display" "flex"
@@ -369,24 +381,24 @@ view model =
             --}
         Canvas.toHtml
             (canvasWidth width, canvasHeight height)
-            [ style "border" "10px solid rgba(0,0,0,0.1)"] --i haven't messed around with this line, feel free to!
+            [ style "border" ("15px solid rgba(" ++ (String.fromFloat (basecolor.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor.green)) ++ ", "++ (String.fromFloat (250 * basecolor.blue)) ++ ", " ++ (String.fromFloat 0.5) ++ ")")] --i haven't messed around with this line, feel free to!
             (List.map3 (placeSplatter model) model.splatterList (List.range 1 model.count) model.colorList)
         , div 
-              [style "border" "15px solid rgba(0,250,200,1)"
-              , style "backgroundColor" "rgba(0,250,200,.5)"
+              [style "border" ("15px solid rgba(" ++ (String.fromFloat (basecolor.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor.green)) ++ ", "++ (String.fromFloat (250 * basecolor.blue)) ++ ", " ++ (String.fromFloat 0.5) ++ ")")
+              , style "backgroundColor" ("rgba(" ++ (String.fromFloat (basecolor.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor.green)) ++ ", "++ (String.fromFloat (250 * basecolor.blue)) ++ ", " ++ (String.fromFloat 0.2) ++ ")")
               , style "width" "200px"
-              , style "height" (String.fromInt (height - 20) ++ "px")
+              , style "height" (String.fromInt (height - 95) ++ "px")
               ]
           [ viewPreview "https://davinstudios.com/sitebuilder/images/Original_Splash_With_Drips_10-31-16-642x209.png" 
-          , button [noborder, h, w, textcolor, r, Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
-          , button [noborder, h, w,textcolor,o, Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
-          , button [noborder, h, w,textcolor,y, Html.Events.onClick (PickColor Color.yellow)] [ text "Yellow" ]
-          , button [noborder, h, w,textcolor,g, Html.Events.onClick (PickColor Color.green)] [ text "Green" ]
-          , button [noborder, h, w,textcolor,b, Html.Events.onClick (PickColor Color.blue)] [ text "Blue" ]
-          , button [noborder, h, w,textcolor,p, Html.Events.onClick (PickColor Color.purple)] [ text "Purple" ]
-          , button [Html.Events.onClick ToggleDrip] [ text "Toggle drip" ]
-          , button [Html.Events.onClick ToggleRays] [ text "Rays" ]
-          , button [Html.Events.onClick TogglePlainCircles] [ text "Boring circles" ]
-          , button [Html.Events.onClick ClearScreen] [ text "Clear screen" ]
+          , button [fontsize, noborder, h, w, textcolor, r, Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
+          , button [noborder, h, w, textcolor,o, Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
+          , button [noborder, h, w, textcolor,y, Html.Events.onClick (PickColor Color.yellow)] [ text "Yellow" ]
+          , button [noborder, h, w, textcolor,g, Html.Events.onClick (PickColor Color.green)] [ text "Green" ]
+          , button [noborder, h, w, textcolor,b, Html.Events.onClick (PickColor Color.blue)] [ text "Blue" ]
+          , button [noborder, h, w, textcolor,p, Html.Events.onClick (PickColor Color.purple)] [ text "Purple" ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleDrip] [ text "Toggle drip" ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRays] [ text "Rays" ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick TogglePlainCircles] [ text "Boring circles" ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ClearScreen] [ text "Clear screen" ]
           ]
         ]
