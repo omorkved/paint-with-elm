@@ -17,6 +17,7 @@ module Paint exposing (main)
 
 -- our file
 import AllBlobs exposing (..)
+import Deque exposing (..)
 
 -- added by us:
 import Platform
@@ -64,9 +65,9 @@ type alias Splatter =
 type alias Model =
     { count : Int -- Count of how many splatters
     , viewport : Maybe Viewport -- for storing width and height of screen
-    , clickList : List Point -- Where they clicked. Head is most recent
-    , splatterList : List Splatter -- like clickList but also contains size of the splatter for each click. Head is most recent
-    , colorList : List Color.Color -- List of colors in order of when they were generated
+    , clickList : Deque Point -- Where they clicked. Head is most recent
+    , splatterList : Deque Splatter -- like clickList but also contains size of the splatter for each click. Head is most recent
+    , colorList : Deque Color.Color -- List of colors in order of when they were generated
     , isDripping : Bool
     , isRotating : Bool
     , degreesRotate : Float
@@ -108,9 +109,9 @@ init () =
 
     ({ count = 0
     , viewport = Nothing
-    , clickList = []
-    , splatterList = []
-    , colorList = []
+    , clickList = Deque.empty
+    , splatterList = Deque.empty
+    , colorList = Deque.empty
     , isDripping = False
     , isRotating = False
     , degreesRotate = 0
@@ -141,16 +142,16 @@ clearShapes model =
     { count = 0
     , viewport = model.viewport
     -- dump the shapes
-    , clickList = []
-    , splatterList = []
+    , clickList = Deque.empty
+    , splatterList = Deque.empty
     , explode = False
     , isRotating = False
     , degreesRotate = 0
     -- preserve the most recently picked color
     , colorList = 
-      case List.head model.colorList of
-        Just color -> [color]
-        Nothing -> []
+      case Deque.peekBack model.colorList of
+        Just color -> addBack color Deque.empty --single item in Deque
+        Nothing -> Deque.empty
 
     -- preserve the current settings
     , isDripping = model.isDripping
@@ -178,7 +179,7 @@ update msg model =
 
         -- These two things change:
       , degreesRotate = model.degreesRotate + 1
-      ,  splatterList = (List.map (growSplat model) model.splatterList)}
+      ,  splatterList = (Deque.mapToDeque (growSplat model) model.splatterList)}
 
       -- generate a cmd
       , if model.explode then
@@ -243,7 +244,7 @@ update msg model =
         (model, Cmd.none)
       else
         -- Add this Point to the clickList
-        ( { model | clickList = newClick :: model.clickList, count = model.count + 1 }
+        ( { model | clickList = (Deque.addBack newClick model.clickList), count = model.count + 1 }
         -- Generate a random size for the splatter
         , (Random.generate (PickRadiusSplatter newClick) (Random.float 30 50)) )
 
@@ -260,14 +261,15 @@ update msg model =
     PickWhichShape loc finalRadius blobID ->
       ({model 
       | splatterList = 
-        ({loc = loc
+        Deque.addBack
+        {loc = loc
         , finalRadius = finalRadius
         -- Radius begins small (for animation)
         , currRadius = 5
         , blobID = blobID
         , dripLength = 0
         , index = model.count} 
-        :: model.splatterList)
+        model.splatterList
       }
       , Cmd.none
       )
@@ -373,23 +375,24 @@ placeOneSplatter model splat =
           _ -> blob5 x y r
       
 
-placeSplatter : Model -> Splatter -> Int -> Color.Color -> Renderable
-placeSplatter model pt i colors =
+placeSplatter : Model -> Splatter -> Color.Color -> Renderable
+placeSplatter model pt colors =
     -- The (map placeOneSplatter pts) call is: List Point -> List Shape
     -- so this allows us to use the built-in shapes function
     Canvas.shapes [fill colors, (maybeRenderSpin model)--, compositeOperationMode Saturation
     ] (placeOneSplatter model pt)
 
 -- add a new color to colorList and modify the rest of the colorlist
-addColor : Color.Color -> List Color.Color -> List Color.Color
+addColor : Color.Color -> Deque Color.Color -> Deque Color.Color
 addColor c colors = 
-  case colors of
-    [] -> c :: colors
-    _ -> c :: List.map2 mixColors (List.indexedMap Tuple.pair colors) (List.repeat (List.length colors) c)
+  if Deque.isEmpty colors then 
+    Deque.addBack c colors
+  else 
+    Deque.addBack c (Deque.mapToDeque (mixColors c) (Deque.indexedMap colors))
 
 -- mix two colors with a given factor
-mixColors : (Int, Color.Color) -> Color.Color -> Color.Color
-mixColors (index, oColor) mixColor =
+mixColors : Color.Color -> (Int, Color.Color) -> Color.Color
+mixColors mixColor (index, oColor) =
   let c1 = Color.toRgba oColor
       c2 = Color.toRgba mixColor
       i = (toFloat index) + 2
@@ -437,7 +440,7 @@ view model =
                 (round viewport.viewport.width
                 , round viewport.viewport.height)
       basecolor = 
-        case List.head model.colorList of 
+        case peekBack model.colorList of  -- Most recently added
           Just color -> Color.toRgba color
           _ -> Color.toRgba Color.white
       basecolor2 = if basecolor == (Color.toRgba Color.white)
@@ -459,10 +462,11 @@ view model =
 
       -- Produce our shapes. Or, if the list is emptied, clear the canvas.
       ourShapes = 
-        if (List.isEmpty model.splatterList) then 
+        if (Deque.isEmpty model.splatterList) then 
           [Canvas.clear (0, 0) (toFloat (canvasWidth width)) (toFloat (canvasHeight height))]
         else 
-          (List.map3 (placeSplatter model) model.splatterList (List.range 1 model.count) model.colorList)
+          Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList model.colorList)
+
 
       -- Custom button text
       rays = if model.raysInsteadOfBlobs then "Turn Rays Off" else "Turn Rays On"
@@ -473,7 +477,7 @@ view model =
         String.slice 0 4 (Debug.toString rgb)
 
       currentColorMix = 
-        case List.head model.colorList of
+        case Deque.peekFront model.colorList of --which color do we want to print
           Just currColor -> 
             let colorDict = Color.toRgba currColor
             in
@@ -491,9 +495,7 @@ view model =
         , style "justify-content" "flex-start" -- Keep this as flex-start (left-aligned fixes the click offset issue)
         , style "align-items" "center"
         ]
-        [  {-- this wasnt appearing- im trying something else
-                Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (List.length model.clickList))]
-            --}
+        [
         Canvas.toHtml
             (canvasWidth width, canvasHeight height)
             [ style "border" ("15px solid rgba(" ++ (String.fromFloat (basecolor.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor.green)) ++ ", "++ (String.fromFloat (250 * basecolor.blue)) ++ ", " ++ (String.fromFloat 0.5) ++ ")")] --i haven't messed around with this line, feel free to!
@@ -507,6 +509,7 @@ view model =
           [ viewPreview "https://davinstudios.com/sitebuilder/images/Original_Splash_With_Drips_10-31-16-642x209.png" 
           , Html.p [fontsize, othercolor] [text "Your current mix:"]
           , Html.p [fontsize, othercolor] [text currentColorMix]
+          , text ("len colorList: " ++ Debug.toString (List.length (Deque.squishToList model.colorList)))
           , button [fontsize, noborder, h, w, textcolor, r, Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
           , button [noborder, h, w, textcolor,o, Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
           , button [noborder, h, w, textcolor,y, Html.Events.onClick (PickColor Color.yellow)] [ text "Yellow" ]
@@ -517,6 +520,8 @@ view model =
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRays] [ text rays ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick TogglePlainCircles] [ text boringCircles ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRotate] [ text "Arcs" ]
+          --, button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick EraseOldest] [ text "Erase oldest" ]
+          --, button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick EraseNewest] [ text "Erase newest" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick (Explode width height)] [ text "Explode" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ClearScreen] [ text "Clear screen" ]
           ]
