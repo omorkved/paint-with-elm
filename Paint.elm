@@ -131,6 +131,21 @@ growSplat model splat =
         splat
 
 ---------------------------------------------------------
+
+clearShapes : Model -> Model
+clearShapes model =
+    { count = 0
+    , viewport = model.viewport
+    , clickList = []
+    , splatterList = []
+    , colorList = []
+    , isDripping = model.isDripping
+    , isRotating = model.isRotating
+    , degreesRotate = model.degreesRotate
+    , plainCircles = model.plainCircles
+    , raysInsteadOfBlobs = model.raysInsteadOfBlobs
+    }
+
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
@@ -152,7 +167,10 @@ update msg model =
       , Cmd.none)
 
     ToggleRotate ->
-      ( {model | isRotating = not model.isRotating}
+      let 
+        newModel = clearShapes model
+      in
+      ( {newModel | isRotating = not model.isRotating}
       , Cmd.none)
 
     
@@ -170,9 +188,9 @@ update msg model =
     -- Always clear the screen when we switch between rays and blobs, to make it look nicer
     ToggleRays ->
       let
-        clearScreenFirst = update ClearScreen model
+        newModel = clearShapes model
       in
-      ({model | raysInsteadOfBlobs = not model.raysInsteadOfBlobs}, Tuple.second clearScreenFirst)
+      ({newModel | raysInsteadOfBlobs = not model.raysInsteadOfBlobs}, Cmd.none)
 
     -- a ClickedPoint message gives us a potential coordinate for a new paint splatter
     ClickedPoint newClick ->
@@ -274,8 +292,8 @@ subscriptions model =
 ---------------------------------------------------------
 -- helper functions for view:
 
-maybeRenderSpin : Model -> Shape -> Setting
-maybeRenderSpin model blob =
+maybeRenderSpin : Model -> Setting
+maybeRenderSpin model =
     let
         rotation = 
           if model.isRotating then degrees (model.degreesRotate * 3)
@@ -402,6 +420,14 @@ view model =
       h2 = style "height" "38px"
       fontsize = style "font" "Comic sans MS"
       otherbackground = style "backgroundColor" "rgba(0, 0, 0, 0)"
+
+      -- Produce our shapes. Or, if the list is emptied, clear the canvas.
+      ourShapes = 
+        if (List.isEmpty model.splatterList) then 
+          [Canvas.clear (0, 0) (toFloat (canvasWidth width)) (toFloat (canvasHeight height))]
+        else 
+          (List.map3 (placeSplatter model) model.splatterList (List.range 1 model.count) model.colorList)
+
     in
     let othercolor = style "color" ("rgba(" ++ (String.fromFloat (basecolor2.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor2.green)) ++ ", "++ (String.fromFloat (250 * basecolor2.blue)) ++ ", " ++ (String.fromFloat 1) ++ ")")
     in
@@ -416,7 +442,7 @@ view model =
         Canvas.toHtml
             (canvasWidth width, canvasHeight height)
             [ style "border" ("15px solid rgba(" ++ (String.fromFloat (basecolor.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor.green)) ++ ", "++ (String.fromFloat (250 * basecolor.blue)) ++ ", " ++ (String.fromFloat 0.5) ++ ")")] --i haven't messed around with this line, feel free to!
-            (List.map3 (placeSplatter model) model.splatterList (List.range 1 model.count) model.colorList)
+            ourShapes
         , div 
               [style "border" ("15px solid rgba(" ++ (String.fromFloat (basecolor.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor.green)) ++ ", "++ (String.fromFloat (250 * basecolor.blue)) ++ ", " ++ (String.fromFloat 0.5) ++ ")")
               , style "backgroundColor" ("rgba(" ++ (String.fromFloat (basecolor.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor.green)) ++ ", "++ (String.fromFloat (250 * basecolor.blue)) ++ ", " ++ (String.fromFloat 0.2) ++ ")")
