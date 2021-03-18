@@ -183,12 +183,16 @@ update msg model =
 
     
     TogglePlainCircles ->
-      ( { count = model.count, viewport = model.viewport
-      , clickList = model.clickList, splatterList = model.splatterList
-      , colorList = model.colorList, isDripping = model.isDripping
-      , isRotating = model.isRotating, degreesRotate = model.degreesRotate
-      -- These two change:
-      , plainCircles = not model.plainCircles
+      let
+        -- dump the already-existing shapes:
+        newModel = clearShapes model
+      in
+      ( { count = newModel.count, viewport = newModel.viewport
+      , clickList = newModel.clickList, splatterList = newModel.splatterList
+      , colorList = newModel.colorList, isDripping = newModel.isDripping
+      , isRotating = newModel.isRotating, degreesRotate = newModel.degreesRotate
+      -- These two settings change:
+      , plainCircles = not newModel.plainCircles
       , raysInsteadOfBlobs = False
       }, Cmd.none)
 
@@ -437,6 +441,16 @@ view model =
         else 
           (List.map3 (placeSplatter model) model.splatterList (List.range 1 model.count) model.colorList)
 
+      -- Custom button text
+      rays = if model.raysInsteadOfBlobs then "Turn Rays Off" else "Turn Rays On"
+      boringCircles = if model.plainCircles then "Go back to blobs" else "Normal circles please"
+
+      -- Report the current mix:
+      currentColorMix = 
+        case List.head model.colorList of
+          Just currColor -> "Your current mix: " ++ Color.toCssString currColor
+          Nothing -> "Select a color to begin"
+
     in
     let othercolor = style "color" ("rgba(" ++ (String.fromFloat (basecolor2.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor2.green)) ++ ", "++ (String.fromFloat (250 * basecolor2.blue)) ++ ", " ++ (String.fromFloat 1) ++ ")")
     in
@@ -459,6 +473,7 @@ view model =
               , style "height" (String.fromInt (height - 95) ++ "px")
               ]
           [ viewPreview "https://davinstudios.com/sitebuilder/images/Original_Splash_With_Drips_10-31-16-642x209.png" 
+          , Html.p [fontsize] [text currentColorMix]
           , button [fontsize, noborder, h, w, textcolor, r, Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
           , button [noborder, h, w, textcolor,o, Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
           , button [noborder, h, w, textcolor,y, Html.Events.onClick (PickColor Color.yellow)] [ text "Yellow" ]
@@ -466,8 +481,8 @@ view model =
           , button [noborder, h, w, textcolor,b, Html.Events.onClick (PickColor Color.blue)] [ text "Blue" ]
           , button [noborder, h, w, textcolor,p, Html.Events.onClick (PickColor Color.purple)] [ text "Purple" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleDrip] [ text "Toggle drip" ]
-          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRays] [ text "Rays" ]
-          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick TogglePlainCircles] [ text "Boring circles" ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRays] [ text rays ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick TogglePlainCircles] [ text boringCircles ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRotate] [ text "Arcs" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ClearScreen] [ text "Clear screen" ]
           ]
