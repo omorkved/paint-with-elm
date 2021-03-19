@@ -141,12 +141,12 @@ map2ToDeque fcn dOne dTwo =
 indexedMap : Deque a -> Deque (Int, a)
 indexedMap (D {front, back}) =
   let
-    addToIndex (i, elt) = ((List.length front) + i, elt)
+    addToIndex (i, elt) = ((List.length back) + (i - 1), elt)
   in
   D {
-    front = List.indexedMap Tuple.pair front
+    front = List.reverse (List.map addToIndex (List.indexedMap Tuple.pair (List.reverse front)))
     --todo fix back so that it's faster...
-    , back = List.map addToIndex (List.reverse (List.indexedMap Tuple.pair (List.reverse back)))   
+    , back = (List.indexedMap Tuple.pair back)
   }
 
 
