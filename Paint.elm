@@ -456,10 +456,10 @@ view model =
       textcolor = style "color" "white"
       noborder = style "border" "0px solid rgba(0,250,200,1)"
       w = style "width" "200px"
-      h = style "height" "57px"
-      h2 = style "height" "32px"
+      h = style "height" "50px"
+      h2 = style "height" "28px"
       fontsize = style "font" "Comic sans MS"
-      otherbackground = style "backgroundColor" "rgba(0, 0, 0, 0)"
+      otherbackground = style "background-color" "rgba(0, 0, 0, 0)"
 
 
       -- ourShapes: Produce most recent shapes. Or, if the list is emptied, clear the canvas.
