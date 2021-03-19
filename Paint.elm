@@ -17,6 +17,7 @@ module Paint exposing (main)
 
 -- our file
 import AllBlobs exposing (..)
+import Deque exposing (..)
 
 -- added by us:
 import Platform
@@ -27,7 +28,7 @@ import Browser
 import Browser.Dom exposing (Viewport)
 import Browser.Events exposing (onAnimationFrameDelta, onMouseDown)
 import Canvas exposing (rect, shapes, circle, Renderable, Point, Shape)
-import Canvas.Settings exposing (fill, Setting)
+import Canvas.Settings exposing (fill, stroke, Setting)
 import Canvas.Settings.Advanced exposing (rotate, transform
   , translate, GlobalCompositeOperationMode(..), compositeOperationMode)
 import Color
@@ -64,16 +65,15 @@ type alias Splatter =
 type alias Model =
     { count : Int -- Count of how many splatters
     , viewport : Maybe Viewport -- for storing width and height of screen
-    , clickList : List Point -- Where they clicked. Head is most recent
-    , splatterList : List Splatter -- like clickList but also contains size of the splatter for each click. Head is most recent
-    , colorList : List Color.Color -- List of colors in order of when they were generated
+    , clickList : Deque Point -- Where they clicked. Head is most recent
+    , splatterList : Deque Splatter -- like clickList but also contains size of the splatter for each click. Head is most recent
+    , colorList : Deque Color.Color -- List of colors in order of when they were generated
     , isDripping : Bool
     , isActuallyDripping : Bool
-    , isRotating : Bool
-    , degreesRotate : Float
     , plainCircles : Bool
     , raysInsteadOfBlobs : Bool
     , explode : Bool
+    , toRerender : Maybe Splatter
     }
 
 type Msg
@@ -84,11 +84,12 @@ type Msg
     | Frame Float -- For animation
     | PickColor Color.Color
     | ToggleDrip
-    | ToggleRotate
     | TogglePlainCircles
     | ToggleRays
     | ClearScreen
     | Explode Int Int
+    | EraseNewest
+    | EraseOldest
     --you should add stuff here.
 
 ---------------------------------------------------------
@@ -109,16 +110,15 @@ init () =
 
     ({ count = 0
     , viewport = Nothing
-    , clickList = []
-    , splatterList = []
-    , colorList = []
+    , clickList = Deque.empty
+    , splatterList = Deque.empty
+    , colorList = Deque.empty
     , isDripping = False
     , isActuallyDripping = False
-    , isRotating = False
-    , degreesRotate = 0
     , plainCircles = False
     , raysInsteadOfBlobs = False
     , explode = False
+    , toRerender = Nothing
     }
     -- Fetch the window size
     , Task.perform GetWindowSize Browser.Dom.getViewport)
@@ -143,13 +143,15 @@ clearShapes model =
     { count = 0
     , viewport = model.viewport
     -- dump the shapes
-    , clickList = []
-    , splatterList = []
+    , clickList = Deque.empty
+    , splatterList = Deque.empty
     , explode = False
-    , isRotating = False
-    , degreesRotate = 0
+    , toRerender = Nothing
     -- preserve the most recently picked color
-    , colorList = []
+    , colorList = 
+      case Deque.peekBack model.colorList of
+        Just color -> addBack color Deque.empty --single item in Deque
+        Nothing -> Deque.empty
 
     -- preserve the current settings
     , isDripping = model.isDripping
@@ -170,16 +172,11 @@ update msg model =
   case msg of
     -- Animation: Makes radius grow in size or make paint drip lengthen
     Frame _ ->
-      ( { count = model.count, viewport = model.viewport
-      , clickList = model.clickList, raysInsteadOfBlobs = model.raysInsteadOfBlobs
-      , colorList = model.colorList, isDripping = (not model.isDripping)
-      , isActuallyDripping = model.isDripping && model.isActuallyDripping
-      , isRotating = model.isRotating, plainCircles = model.plainCircles
-      , explode = model.explode
-
+      ( { model |
         -- These two things change:
-      , degreesRotate = model.degreesRotate + 1
-      ,  splatterList = (List.map (growSplat model) model.splatterList)}
+      splatterList = (Deque.mapToDeque (growSplat model) model.splatterList)
+      , toRerender = Nothing
+      }
 
       -- generate a cmd
       , if model.explode then
@@ -196,12 +193,6 @@ update msg model =
       ( {model | isActuallyDripping = not model.isActuallyDripping}
       , Cmd.none)
 
-    ToggleRotate ->
-      let 
-        newModel = clearShapes model
-      in
-      ( {newModel | isRotating = not model.isRotating}
-      , Cmd.none)
 
     
     TogglePlainCircles ->
@@ -209,14 +200,9 @@ update msg model =
         -- dump the already-existing shapes:
         newModel = clearShapes model
       in
-      ( { count = newModel.count, viewport = newModel.viewport
-      , clickList = newModel.clickList, splatterList = newModel.splatterList
-      , colorList = newModel.colorList, isDripping = newModel.isDripping
-      , isActuallyDripping = newModel.isActuallyDripping
-      , isRotating = newModel.isRotating, degreesRotate = newModel.degreesRotate
-      , explode = newModel.explode
+      ( { model |
       -- These two settings change:
-      , plainCircles = not newModel.plainCircles
+      plainCircles = not newModel.plainCircles
       , raysInsteadOfBlobs = False
       }, Cmd.none)
 
@@ -245,7 +231,7 @@ update msg model =
         (model, Cmd.none)
       else
         -- Add this Point to the clickList
-        ( { model | clickList = newClick :: model.clickList, count = model.count + 1 }
+        ( { model | clickList = (Deque.addBack newClick model.clickList), count = model.count + 1 }
         -- Generate a random size for the splatter
         , (Random.generate (PickRadiusSplatter newClick) (Random.float 30 50)) )
 
@@ -262,14 +248,15 @@ update msg model =
     PickWhichShape loc finalRadius blobID ->
       ({model 
       | splatterList = 
-        ({loc = loc
+        Deque.addBack
+        {loc = loc
         , finalRadius = finalRadius
         -- Radius begins small (for animation)
         , currRadius = 5
         , blobID = blobID
         , dripLength = 0
         , index = model.count} 
-        :: model.splatterList)
+        model.splatterList
       }
       , Cmd.none
       )
@@ -281,6 +268,27 @@ update msg model =
     ClearScreen ->
         (clearShapes model, Cmd.none)
         --init ()
+
+
+    -- Erase commands: Take advantage of the power of deques. User can erase one splatter, either the
+    -- oldest or the newest created one.
+    EraseNewest ->
+      ({ model | toRerender = Deque.peekBack model.splatterList 
+      , splatterList = 
+        case Deque.removeBack model.splatterList of
+          Just deq -> deq
+          Nothing -> Deque.empty
+      }
+      , Cmd.none)
+
+    EraseOldest ->
+      ({ model | toRerender = Deque.peekFront model.splatterList
+      , splatterList = 
+        case Deque.removeFront model.splatterList of
+          Just deq -> deq
+          Nothing -> Deque.empty
+      }    
+      , Cmd.none)
 
     -- Credit: Learned how to update viewport from 
     -- https://discourse.elm-lang.org/t/browser-dom-getviewport-return-value/1990/2
@@ -330,16 +338,6 @@ subscriptions model =
 ---------------------------------------------------------
 -- helper functions for view:
 
-maybeRenderSpin : Model -> Setting
-maybeRenderSpin model =
-    let
-        rotation = 
-          if model.isRotating then degrees (model.degreesRotate * 3)
-          else degrees 0
-        
-    in
-    transform [rotate rotation]
-
 
 --place one splatter produces the visualization that corresponds
 -- to one specific click.
@@ -375,23 +373,23 @@ placeOneSplatter model splat =
           _ -> blob5 x y r
       
 
-placeSplatter : Model -> Splatter -> Int -> Color.Color -> Renderable
-placeSplatter model pt i colors =
+placeSplatter : Model -> Splatter -> Color.Color -> Renderable
+placeSplatter model pt colors =
     -- The (map placeOneSplatter pts) call is: List Point -> List Shape
     -- so this allows us to use the built-in shapes function
-    Canvas.shapes [fill colors, (maybeRenderSpin model)--, compositeOperationMode Saturation
-    ] (placeOneSplatter model pt)
+    Canvas.shapes [fill colors] (placeOneSplatter model pt)
 
 -- add a new color to colorList and modify the rest of the colorlist
-addColor : Color.Color -> List Color.Color -> List Color.Color
+addColor : Color.Color -> Deque Color.Color -> Deque Color.Color
 addColor c colors = 
-  case colors of
-    [] -> c :: colors
-    _ -> c :: List.map2 mixColors (List.indexedMap Tuple.pair colors) (List.repeat (List.length colors) c)
+  if Deque.isEmpty colors then 
+    Deque.addBack c colors
+  else 
+    Deque.addBack c (Deque.mapToDeque (mixColors c) (Deque.indexedMap colors))
 
 -- mix two colors with a given factor
-mixColors : (Int, Color.Color) -> Color.Color -> Color.Color
-mixColors (index, oColor) mixColor =
+mixColors : Color.Color -> (Int, Color.Color) -> Color.Color
+mixColors mixColor (index, oColor) =
   let c1 = Color.toRgba oColor
       c2 = Color.toRgba mixColor
       i = (toFloat index) + 2
@@ -439,7 +437,7 @@ view model =
                 (round viewport.viewport.width
                 , round viewport.viewport.height)
       basecolor = 
-        case List.head model.colorList of 
+        case peekBack model.colorList of  -- Most recently added
           Just color -> Color.toRgba color
           _ -> Color.toRgba Color.white
       basecolor2 = if basecolor == (Color.toRgba Color.white)
@@ -461,10 +459,27 @@ view model =
 
       -- Produce our shapes. Or, if the list is emptied, clear the canvas.
       ourShapes = 
-        if (List.isEmpty model.splatterList) then 
+        if (Deque.isEmpty model.splatterList) then
           [Canvas.clear (0, 0) (toFloat (canvasWidth width)) (toFloat (canvasHeight height))]
         else 
-          (List.map3 (placeSplatter model) model.splatterList (List.range 1 model.count) model.colorList)
+          case model.toRerender of
+            Just removeMe ->
+              [Canvas.shapes [fill Color.white, stroke Color.white] (placeOneSplatter model removeMe)]
+            Nothing ->
+
+              -- If there is only one color so far, but multiple splatters, we need to repeat
+              -- the single color to get the "map" call to render every splatter
+              if ((Deque.length model.colorList) == 1) && ((Deque.length model.splatterList) > 1) then
+                case Deque.peekFront model.colorList of
+                  Just onlyCol ->
+                    Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList (Deque.repeat (Deque.length model.splatterList) onlyCol))
+                  Nothing ->
+                    Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList model.colorList)
+                else
+              -- There are multiple colors and multiple splatters. Rerenders
+              -- the splatters that were affected by the most recent color change.
+              Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList model.colorList)
+
 
       -- Custom button text
       rays = if model.raysInsteadOfBlobs then "Turn Rays Off" else "Turn Rays On"
@@ -475,7 +490,7 @@ view model =
         String.slice 0 4 (Debug.toString rgb)
 
       currentColorMix = 
-        case List.head (List.reverse model.colorList) of
+        case Deque.peekFront model.colorList of --which color do we want to print
           Just currColor -> 
             let colorDict = Color.toRgba currColor
             in
@@ -493,9 +508,7 @@ view model =
         , style "justify-content" "flex-start" -- Keep this as flex-start (left-aligned fixes the click offset issue)
         , style "align-items" "center"
         ]
-        [  {-- this wasnt appearing- im trying something else
-                Html.div [] [Html.text ("Num clicks: " ++ String.fromInt (List.length model.clickList))]
-            --}
+        [
         Canvas.toHtml
             (canvasWidth width, canvasHeight height)
             [ style "border" ("15px solid rgba(" ++ (String.fromFloat (basecolor.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor.green)) ++ ", "++ (String.fromFloat (250 * basecolor.blue)) ++ ", " ++ (String.fromFloat 0.5) ++ ")")] --i haven't messed around with this line, feel free to!
@@ -509,6 +522,7 @@ view model =
           [ viewPreview "https://davinstudios.com/sitebuilder/images/Original_Splash_With_Drips_10-31-16-642x209.png" 
           , Html.p [fontsize, othercolor] [text "Your final mix:"]
           , Html.p [fontsize, othercolor] [text currentColorMix]
+          , text ("len splatterList: " ++ Debug.toString (List.length (Deque.squishToList model.splatterList)))
           , button [fontsize, noborder, h, w, textcolor, r, Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
           , button [noborder, h, w, textcolor,o, Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
           , button [noborder, h, w, textcolor,y, Html.Events.onClick (PickColor Color.yellow)] [ text "Yellow" ]
@@ -518,7 +532,8 @@ view model =
           --, button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleDrip] [ text "Toggle drip" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRays] [ text rays ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick TogglePlainCircles] [ text boringCircles ]
-          --, button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRotate] [ text "Arcs" ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick EraseOldest] [ text "Erase oldest" ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick EraseNewest] [ text "Erase newest" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick (Explode width height)] [ text "Explode" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ClearScreen] [ text "Clear screen" ]
           ]

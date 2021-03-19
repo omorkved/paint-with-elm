@@ -19,6 +19,7 @@ blob1 x y r =
 
 blob2 : Float -> Float -> Radius -> List Shape
 blob2 x y r = 
+  
   [ circle (x, y) r
   , circle (x + (r * 3/5), y) (r/2)
   , circle (x + (r * 1/12), y - (5*r/8)) (2*r/3)
