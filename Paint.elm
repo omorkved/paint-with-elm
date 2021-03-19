@@ -526,9 +526,14 @@ view model =
             ++ " B : " ++ printRGBNicely colorDict.blue
 
           Nothing -> "Select a color to begin"
+      newCurrColor = 
+        case Deque.peekFront model.colorList of
+          Just currColor -> Color.toRgba currColor
+          _ -> Color.toRgba Color.white
 
     in
     let othercolor = style "color" ("rgba(" ++ (String.fromFloat (basecolor2.red * 250)) ++ ", " ++ (String.fromFloat (250*basecolor2.green)) ++ ", "++ (String.fromFloat (250 * basecolor2.blue)) ++ ", " ++ (String.fromFloat 1) ++ ")")
+        othercolor2 = style "color" ("rgba(" ++ (String.fromFloat (newCurrColor.red * 250)) ++ ", " ++ (String.fromFloat (250*newCurrColor.green)) ++ ", "++ (String.fromFloat (250 * newCurrColor.blue)) ++ ", " ++ (String.fromFloat 1) ++ ")")
     in
     div
         [ style "display" "flex"
@@ -547,8 +552,8 @@ view model =
               , style "height" (String.fromInt (canvasHeight height + 3) ++ "px")
               ]
           [ viewPreview "https://davinstudios.com/sitebuilder/images/Original_Splash_With_Drips_10-31-16-642x209.png" 
-          , Html.p [fontsize, othercolor] [text "Your final mix:"]
-          , Html.p [fontsize, othercolor] [text currentColorMix]
+          , Html.p [fontsize, othercolor2] [text "Your final mix:"]
+          , Html.p [fontsize, othercolor2] [text currentColorMix]
           --, text ("len splatterList: " ++ Debug.toString (List.length (Deque.squishToList model.splatterList)))
           , button [fontsize, noborder, h, w, textcolor, r, Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
           , button [noborder, h, w, textcolor,o, Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
