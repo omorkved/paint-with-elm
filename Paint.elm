@@ -88,7 +88,6 @@ type Msg
     | PickColor Color.Color
 
     -- Handle the feature buttons:
-    | ToggleDrip
     | TogglePlainCircles
     | ToggleRays
     | Explode Int Int
@@ -202,11 +201,6 @@ update msg model =
        (Random.float 0 (canvasHeight yScreen |> toFloat)))
       else Cmd.none 
       )
-
-    -- ToggleDrip: turns "paint drip" effect on or off
-    ToggleDrip ->
-      ( {model | isActuallyDripping = not model.isActuallyDripping}
-      , Cmd.none)
 
     -- TogglePlainCircles: switches whether we are painting with circles or blobs
     TogglePlainCircles ->
@@ -389,6 +383,8 @@ placeSplatter : Model -> Splatter -> Color.Color -> Renderable
 placeSplatter model pt colors =
     Canvas.shapes [fill colors] (placeOneSplatter model pt)
 
+
+{-- Functions for mixing paint --}
 {-- addColor: add a new color to colorList and 
     modify the rest of the colorlist
 --}
@@ -413,7 +409,7 @@ mixColors mixColor (index, oColor) =
     in 
       Color.fromRgba {red = r, green = g, blue = b, alpha = 1}
 
-
+{-- Functions for view --}
 -- Wrappers for width and height for the actual "draw area"
 canvasWidth width = 3 * width // 4
 canvasHeight height = 7 * height // 8
@@ -465,7 +461,8 @@ view model =
       fontsize = style "font" "Comic sans MS"
       otherbackground = style "backgroundColor" "rgba(0, 0, 0, 0)"
 
-      -- Produce most recent shapes. Or, if the list is emptied, clear the canvas.
+
+      -- ourShapes: Produce most recent shapes. Or, if the list is emptied, clear the canvas.
       ourShapes = 
         if (Deque.isEmpty model.splatterList) then
           -- The list is empty, so clear the previously-rendered shapes
@@ -482,7 +479,7 @@ view model =
                 (placeOneSplatter model removeMeSlightlyLargerBorder)]
 
             Nothing ->
-              -- Nothing to erase. So, render the shapes affected by the most recent color change
+              -- Nothing to erase. So, we'll render the shapes affected by the most recent color change
 
               {--If there is only one color so far, but multiple splatters, we need to repeat
                 the single color to get the "map" call to render every splatter --}
@@ -502,17 +499,25 @@ view model =
               Deque.squishToList 
                 (Deque.map2ToDeque (placeSplatter model) model.splatterList model.colorList)
 
+      -- End of ourShapes
 
       -- Custom button text
-      rays = if model.raysInsteadOfBlobs then "Turn Rays Off" else "Turn Rays On"
-      boringCircles = if model.plainCircles then "Go back to blobs" else "Normal circles please"
+      rays = 
+        if model.raysInsteadOfBlobs then 
+          if Deque.isEmpty model.splatterList then "Click onto the canvas. Or, click 'Explode'"
+          else "Turn Rays Off" 
+        else "Turn Rays On"
 
+      boringCircles = if model.plainCircles then "Go back to blobs" else "Normal circles please"
+      clearScreenText = if model.explode then "Stop the explosion" else "Clear the screen"
+      explodeText = if model.explode then "(Click different colors while the explosion runs)" else "Explode"
+      
       -- Report the color of the current mix:
       printRGBNicely rgb =
         String.slice 0 4 (Debug.toString rgb)
 
       currentColorMix = 
-        case Deque.peekFront model.colorList of --which color do we want to print
+        case Deque.peekFront model.colorList of
           Just currColor -> 
             let colorDict = Color.toRgba currColor
             in
@@ -551,12 +556,11 @@ view model =
           , button [noborder, h, w, textcolor,g, Html.Events.onClick (PickColor Color.green)] [ text "Green" ]
           , button [noborder, h, w, textcolor,b, Html.Events.onClick (PickColor Color.blue)] [ text "Blue" ]
           , button [noborder, h, w, textcolor,p, Html.Events.onClick (PickColor Color.purple)] [ text "Purple" ]
-          --, button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleDrip] [ text "Toggle drip" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ToggleRays] [ text rays ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick TogglePlainCircles] [ text boringCircles ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick EraseOldest] [ text "Erase oldest" ]
           , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick EraseNewest] [ text "Erase newest" ]
-          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick (Explode width height)] [ text "Explode" ]
-          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ClearScreen] [ text "Clear screen" ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick (Explode width height)] [ text explodeText ]
+          , button [noborder, h2, w, othercolor, otherbackground, Html.Events.onClick ClearScreen] [ text clearScreenText ]
           ]
         ]
