@@ -7,16 +7,18 @@ module Paint exposing (main)
   which was linked from the Canvas documentation
 - Learned how to update viewport from 
   https://discourse.elm-lang.org/t/browser-dom-getviewport-return-value/1990/2 --}
+-- referenced small amount of image preview code from https://elm-lang.org/examples/image-previews
 ----------------------------------------------------
 -- Imports
 
 -- Our files
+{-- Contains low level details for generate blob shapes --}
 import AllBlobs exposing (..)
 
-{-- Based off of hw7, and we also added many new functions to the Deque module --}
+{-- Based off of hw7. We also added many new functions to the Deque module --}
 import Deque exposing (..)
 
--- added by us:
+-- External
 import Platform
 import Task
 import Json.Decode as Decode
@@ -33,16 +35,14 @@ import Html.Attributes exposing (style)
 ---------------------------------------------------------
 -- Types
 
--- -- Set page title? --- haha nope
--- port title : String
--- port title = "The page title"
-
--- jk don't do this cuz Canvas has a built-in point type.
---type alias Point = { x : Float, y : Float }
-
+{-- We pre-set the blob shapes (reference our report for more info)
+ -- so, use BlobID as an identifier for which blob shape to use. --}
 type alias BlobID = Int
+
 type alias Radius = Float
 
+{-- Splatter contains all info needed to render an individual click, except for color
+    Color is determined by mixing the relevant color entries in the colorList --}
 type alias Splatter = 
     { loc : Point
     , finalRadius : Float -- Once animation stops
@@ -50,37 +50,51 @@ type alias Splatter =
     , blobID : BlobID
     , dripLength : Float -- For animation
     , index : Int }
---you can put more stuff in here
 
 type alias Model =
     { count : Int -- Count of how many splatters
-    , viewport : Maybe Viewport -- for storing width and height of screen
-    , clickList : Deque Point -- Where they clicked. Head is most recent
-    , splatterList : Deque Splatter -- like clickList but also contains size of the splatter for each click. Head is most recent
-    , colorList : Deque Color.Color -- List of colors in order of when they were generated
-    , isDripping : Bool
-    , isActuallyDripping : Bool
+    , viewport : Maybe Viewport -- For storing width and height of screen
+    , clickList : Deque Point -- Where they clicked. Back is most recent
+    , splatterList : Deque Splatter -- Back is most recent
+    -- List of color button presses. Back is most recent
+    , colorList : Deque Color.Color
+
+    -- Booleans to keep track of which shape to draw
     , plainCircles : Bool
     , raysInsteadOfBlobs : Bool
     , explode : Bool
     , toRerender : Maybe Splatter
+
+    -- Booleans used for rendering purposes
+    , isDripping : Bool
+    , isActuallyDripping : Bool
+
     }
 
 type Msg
-    = ClickedPoint Point --handles clicks.
-    | PickRadiusSplatter Point Radius --handles the generator for the final radius for the splatter
-    | PickWhichShape Point Radius BlobID --handles the generator for the ID of the blob
+    = ClickedPoint Point 
+
+    -- PickRadiusSplatter handles the generator for the final radius for the splatter
+    | PickRadiusSplatter Point Radius
+
+    --PickWhichShapes handles the generator for the ID of the blob
+    | PickWhichShape Point Radius BlobID
+
+    -- Handles rendering details:
     | GetWindowSize Viewport
     | Frame Float -- For animation
+
+    -- Handle the color buttons:
     | PickColor Color.Color
+
+    -- Handle the feature buttons:
     | ToggleDrip
     | TogglePlainCircles
     | ToggleRays
-    | ClearScreen
     | Explode Int Int
     | EraseNewest
     | EraseOldest
-    --you should add stuff here.
+    | ClearScreen
 
 ---------------------------------------------------------
 -- Code
@@ -96,8 +110,6 @@ main =
 
 init : () -> ( Model, Cmd Msg )
 init () =
-    --right now, not doing anything with flags.
-
     ({ count = 0
     , viewport = Nothing
     , clickList = Deque.empty
@@ -114,7 +126,16 @@ init () =
     , Task.perform GetWindowSize Browser.Dom.getViewport)
 
 
--- For the animation
+---------------------------------------------------------
+
+{-- growSplat:
+    For animation details
+    If Splatter is new, grows the splatter to finalRadius size
+      to create a smoother feel.
+
+    If splatter has been around for awhile, create a "paint drip"
+      effect to simulate real paint.
+--}
 growSplat : Model -> Splatter -> Splatter
 growSplat model splat =
     if splat.currRadius < splat.finalRadius then
@@ -125,54 +146,56 @@ growSplat model splat =
       else 
         splat
 
----------------------------------------------------------
 
 -- Call this function when the user wants to clear the scren
 clearShapes : Model -> Model
 clearShapes model =
     { count = 0
     , viewport = model.viewport
-    -- dump the shapes
+
+    -- Dump the shapes
     , clickList = Deque.empty
     , splatterList = Deque.empty
     , explode = False
     , toRerender = Nothing
-    -- preserve the most recently picked color
+
+    -- Preserve the most recently picked color
     , colorList = 
       case Deque.peekBack model.colorList of
         Just color -> addBack color Deque.empty --single item in Deque
         Nothing -> Deque.empty
 
-    -- preserve the current settings
+    -- Preserve the current settings
     , isDripping = model.isDripping
     , isActuallyDripping = model.isActuallyDripping
     , plainCircles = model.plainCircles
     , raysInsteadOfBlobs = model.raysInsteadOfBlobs
     }
 
+-- update:
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   let
+    -- Grab screen details for easier reference
     (xScreen, yScreen) = 
       case model.viewport of
         Just viewport -> (round viewport.viewport.width, round viewport.viewport.height)
         Nothing -> (800, 800)
   in
-
   case msg of
-    -- Animation: Makes radius grow in size or make paint drip lengthen
+
+    -- Frame: For animation. Makes radius grow in size or make paint drip lengthen
     Frame _ ->
       ( { model |
-        -- These two things change:
       splatterList = (Deque.mapToDeque (growSplat model) model.splatterList)
       , toRerender = Nothing
       , isDripping = (not model.isDripping)
       , isActuallyDripping = model.isDripping && model.isActuallyDripping
       }
 
-      -- generate a cmd
+      -- Check if we are in Explode mode
       , if model.explode then
-      -- generate a phantom click 
+        -- If so, generate a phantom click 
        Random.generate 
        ClickedPoint 
        (Random.pair (Random.float 0 (canvasWidth xScreen |> toFloat))
@@ -180,38 +203,36 @@ update msg model =
       else Cmd.none 
       )
 
-    -- ToggleDrip turns "paint drip" effect on or off
+    -- ToggleDrip: turns "paint drip" effect on or off
     ToggleDrip ->
       ( {model | isActuallyDripping = not model.isActuallyDripping}
       , Cmd.none)
 
-
-    
+    -- TogglePlainCircles: switches whether we are painting with circles or blobs
     TogglePlainCircles ->
       let
-        -- dump the already-existing shapes:
+        -- Clear the screen:
         newModel = clearShapes model
       in
-      ( { model |
-      -- These two settings change:
-      plainCircles = not newModel.plainCircles
+      ( { model | plainCircles = not newModel.plainCircles
       , raysInsteadOfBlobs = False
       }, Cmd.none)
 
-    -- ToggleRays switches whether we are painting with rays or not.
-    -- Always clear the screen when we switch between rays and blobs, to make it look nicer
+    -- ToggleRays: switches whether we are painting with rays shapes or not.
     ToggleRays ->
       let
+         -- Always clears the screen when we switch between rays and blobs,
+         -- to make it look nicer.
         newModel = clearShapes model
       in
       ({newModel | raysInsteadOfBlobs = not model.raysInsteadOfBlobs}, Cmd.none)
 
-
+    -- Explode: a fun feature
     Explode width height ->
       ({model | explode = True}
       , Cmd.none)
       
-    -- a ClickedPoint message gives us a potential coordinate for a new paint splatter
+    -- ClickedPoint: gives us a coordinate for a new paint splatter
     ClickedPoint newClick ->
       -- Did they click into the actual canvas, or on another part of the screen:
       let
@@ -227,43 +248,42 @@ update msg model =
         -- Generate a random size for the splatter
         , (Random.generate (PickRadiusSplatter newClick) (Random.float 30 50)) )
 
-
-    -- Pick a random size for the splatter
+    -- PickRadiusSplatter: Handles the newly-picked random size for a new splatter
     PickRadiusSplatter loc finalRadius ->
       -- Dont update the model just yet! We want another cmd to generate a random blobID first.
       ( model
       , Random.generate (PickWhichShape loc finalRadius) (Random.int 1 5)
       )
 
-
-    -- Just picked a random blobID. Pack it all into a new Splatter in our model
+    {-- PickWhichShape: Handles a newly-picked blobID. 
+        Packs it all into a new Splatter in our model --}
     PickWhichShape loc finalRadius blobID ->
       ({model 
       | splatterList = 
         Deque.addBack
-        {loc = loc
-        , finalRadius = finalRadius
+        {loc = loc, finalRadius = finalRadius
         -- Radius begins small (for animation)
         , currRadius = 5
-        , blobID = blobID
-        , dripLength = 0
+        , blobID = blobID, dripLength = 0
         , index = model.count} 
         model.splatterList
       }
       , Cmd.none
       )
 
-    -- Chose a color and add to list of colors
+    -- PickColor: When user choses a color, add to list of colors
     PickColor color -> 
       ({ model | colorList = addColor color model.colorList}, Cmd.none)
       
+    -- ClearScreen: clears the screen
     ClearScreen ->
         (clearShapes model, Cmd.none)
         --init ()
 
-
-    -- Erase commands: Take advantage of the power of deques. User can erase one splatter, either the
-    -- oldest or the newest created one.
+    {-- Erase commands: 
+      Take advantage of the power of deques. 
+      User can erase one splatter, either the
+      oldest or the newest created one. --}
     EraseNewest ->
       ({ model | toRerender = Deque.peekBack model.splatterList 
       , splatterList = 
@@ -282,10 +302,11 @@ update msg model =
       }    
       , Cmd.none)
 
-    -- Credit: Learned how to update viewport from 
+    -- GetWindowSize: Credit: Learned how to update viewport from 
     -- https://discourse.elm-lang.org/t/browser-dom-getviewport-return-value/1990/2
     GetWindowSize viewport ->
         ({ model | viewport = Just viewport }, Cmd.none)
+
 
 -- End update function
 ---------------------------------------------------------
@@ -295,12 +316,11 @@ update msg model =
     This maps the coordinates of the click, which are given
     in JSON, to ints so we can bundle them into a Point
     
-    credit: clickDecoder taken from Quiz 1' code (presumably written by Prof Chugh) 
+    credit: clickDecoder was based on Quiz 1' code (presumably written by Prof Chugh) 
 --}
 clickDecoder : Decode.Decoder Point
 clickDecoder =
   Decode.map2
-    --(\x y -> { x = toFloat x, y = toFloat y })
     (\x y -> (toFloat x, toFloat y))
     (Decode.field "clientX" Decode.int)
     (Decode.field "clientY" Decode.int)
@@ -308,12 +328,12 @@ clickDecoder =
 
 {-- point to Msg:
     Helper function for subscriptions. 
-    Literally just turns a Point into a Msg so that 
+    Turns a Point into a Msg so that 
     subscriptions can have the right type.
 --}
 pointToMsg : Point -> Msg
-pointToMsg point =
-  ClickedPoint point
+pointToMsg point = ClickedPoint point
+
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -325,38 +345,35 @@ subscriptions model =
     , onAnimationFrameDelta Frame
     ]
 
--- End subscription and subscription helper fcns
-
 ---------------------------------------------------------
--- helper functions for view:
+-- Helper functions for view:
 
 
---place one splatter produces the visualization that corresponds
--- to one specific click.
--- This vis may be: a circle, a blob, a ray, and with or without paint dripping
+{-- placeOneSplatter: 
+  Produces the visualization that corresponds to a specific click.
+
+  Depending on settings in the model, this visualization may be a 
+  circle, a blob, a ray, and with or without paint dripping
+--}
 placeOneSplatter : Model -> Splatter -> List Shape
 placeOneSplatter model splat =
     let
       x = Tuple.first splat.loc
       y = Tuple.second splat.loc
-      -- Note we use the current radius (not the final radius)
-      -- so that the animation works
       r = splat.currRadius
       drip = (dripPaint model.isDripping x y splat.dripLength)
-
     in
     if model.raysInsteadOfBlobs then
       -- Plots rays instead of blobs
       rays True x y
     else
-      -- Optional "paint dripping" effect
+      -- Include the "paint dripping" effect
       drip ::
       if model.plainCircles then
-        -- Plot boring plain circles instead of blobs
+        -- Plot plain circles instead of blobs
         [circle (x, y) r]
       else
-        --Plot fun blobs
-
+        --Plot fun blobs. These are pre-set in AllBlobs to guarantee that they look pretty :)
         case splat.blobID of
           1 -> blob1 x y r
           2 -> blob2 x y r
@@ -365,13 +382,16 @@ placeOneSplatter model splat =
           _ -> blob5 x y r
       
 
+{--placeSplatter: 
+  Wraps the shape produces by placeOneSplatter into a Canvas.Renderable type 
+--}
 placeSplatter : Model -> Splatter -> Color.Color -> Renderable
 placeSplatter model pt colors =
-    -- The (map placeOneSplatter pts) call is: List Point -> List Shape
-    -- so this allows us to use the built-in shapes function
     Canvas.shapes [fill colors] (placeOneSplatter model pt)
 
--- add a new color to colorList and modify the rest of the colorlist
+{-- addColor: add a new color to colorList and 
+    modify the rest of the colorlist
+--}
 addColor : Color.Color -> Deque Color.Color -> Deque Color.Color
 addColor c colors = 
   if Deque.isEmpty colors then 
@@ -379,7 +399,7 @@ addColor c colors =
   else 
     Deque.addBack c (Deque.mapToDeque (mixColors c) (Deque.indexedMap colors))
 
--- mix two colors with a given factor
+{-- mixColors: mix two colors with a given factor --}
 mixColors : Color.Color -> (Int, Color.Color) -> Color.Color
 mixColors mixColor (index, oColor) =
   let c1 = Color.toRgba oColor
@@ -393,16 +413,13 @@ mixColors mixColor (index, oColor) =
     in 
       Color.fromRgba {red = r, green = g, blue = b, alpha = 1}
 
-  
 
-
-
--- Wrappers for width and height
+-- Wrappers for width and height for the actual "draw area"
 canvasWidth width = 3 * width // 4
 canvasHeight height = 7 * height // 8
 
 
--- Code taken from https://elm-lang.org/examples/image-previews
+-- Citation: referenced small amount of code from https://elm-lang.org/examples/image-previews
 viewPreview : String -> Html msg
 viewPreview url =
   div
@@ -423,8 +440,7 @@ view model =
     let
       (width, height) = 
         case model.viewport of
-            Nothing ->
-                (800, 800)
+            Nothing -> (800, 800)
             Just viewport ->
                 (round viewport.viewport.width
                 , round viewport.viewport.height)
@@ -449,40 +465,49 @@ view model =
       fontsize = style "font" "Comic sans MS"
       otherbackground = style "backgroundColor" "rgba(0, 0, 0, 0)"
 
-      -- Produce our shapes. Or, if the list is emptied, clear the canvas.
+      -- Produce most recent shapes. Or, if the list is emptied, clear the canvas.
       ourShapes = 
         if (Deque.isEmpty model.splatterList) then
+          -- The list is empty, so clear the previously-rendered shapes
           [Canvas.clear (0, 0) (toFloat (canvasWidth width)) (toFloat (canvasHeight height))]
         else 
           case model.toRerender of
-            -- If this is set, there is something new to erase.
             Just removeMe ->
+              -- If this is set, there is something new to erase.
               let
                 -- Increment border, so that it erases cleanly without leaving a ghost border behind
                 removeMeSlightlyLargerBorder = {removeMe | currRadius = removeMe.currRadius + 5}
               in
-              [Canvas.shapes [fill Color.white, stroke Color.white] (placeOneSplatter model removeMeSlightlyLargerBorder)]
-            Nothing ->
+              [Canvas.shapes [fill Color.white, stroke Color.white] 
+                (placeOneSplatter model removeMeSlightlyLargerBorder)]
 
-              -- If there is only one color so far, but multiple splatters, we need to repeat
-              -- the single color to get the "map" call to render every splatter
+            Nothing ->
+              -- Nothing to erase. So, render the shapes affected by the most recent color change
+
+              {--If there is only one color so far, but multiple splatters, we need to repeat
+                the single color to get the "map" call to render every splatter --}
               if ((Deque.length model.colorList) == 1) && ((Deque.length model.splatterList) > 1) then
                 case Deque.peekFront model.colorList of
                   Just onlyCol ->
-                    Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList (Deque.repeat (Deque.length model.splatterList) onlyCol))
+                    Deque.squishToList 
+                      (Deque.map2ToDeque (placeSplatter model) 
+                        model.splatterList (Deque.repeat (Deque.length model.splatterList) onlyCol))
                   Nothing ->
-                    Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList model.colorList)
+                    Deque.squishToList 
+                      (Deque.map2ToDeque (placeSplatter model) 
+                        model.splatterList model.colorList)
                 else
               -- There are multiple colors and multiple splatters. Rerenders
               -- the splatters that were affected by the most recent color change.
-              Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList model.colorList)
+              Deque.squishToList 
+                (Deque.map2ToDeque (placeSplatter model) model.splatterList model.colorList)
 
 
       -- Custom button text
       rays = if model.raysInsteadOfBlobs then "Turn Rays Off" else "Turn Rays On"
       boringCircles = if model.plainCircles then "Go back to blobs" else "Normal circles please"
 
-      -- Report the current mix:
+      -- Report the color of the current mix:
       printRGBNicely rgb =
         String.slice 0 4 (Debug.toString rgb)
 
