@@ -28,7 +28,7 @@ import Browser
 import Browser.Dom exposing (Viewport)
 import Browser.Events exposing (onAnimationFrameDelta, onMouseDown)
 import Canvas exposing (rect, shapes, circle, Renderable, Point, Shape)
-import Canvas.Settings exposing (fill, Setting)
+import Canvas.Settings exposing (fill, stroke, Setting)
 import Canvas.Settings.Advanced exposing (rotate, transform
   , translate, GlobalCompositeOperationMode(..), compositeOperationMode)
 import Color
@@ -74,6 +74,7 @@ type alias Model =
     , plainCircles : Bool
     , raysInsteadOfBlobs : Bool
     , explode : Bool
+    , toRerender : Maybe Splatter
     }
 
 type Msg
@@ -120,6 +121,7 @@ init () =
     , plainCircles = False
     , raysInsteadOfBlobs = False
     , explode = False
+    , toRerender = Nothing
     }
     -- Fetch the window size
     , Task.perform GetWindowSize Browser.Dom.getViewport)
@@ -149,6 +151,7 @@ clearShapes model =
     , explode = False
     , isRotating = False
     , degreesRotate = 0
+    , toRerender = Nothing
     -- preserve the most recently picked color
     , colorList = 
       case Deque.peekBack model.colorList of
@@ -173,15 +176,19 @@ update msg model =
   case msg of
     -- Animation: Makes radius grow in size or make paint drip lengthen
     Frame _ ->
-      ( { count = model.count, viewport = model.viewport
-      , clickList = model.clickList, raysInsteadOfBlobs = model.raysInsteadOfBlobs
-      , colorList = model.colorList, isDripping = model.isDripping
-      , isRotating = model.isRotating, plainCircles = model.plainCircles
-      , explode = model.explode
-
+      let
+        (timeToRerender, newDegreesRotate) = 
+          if (model.degreesRotate >= 360) then
+            (True, 0)
+          else
+            (False, model.degreesRotate)
+      in
+      ( { model |
         -- These two things change:
-      , degreesRotate = model.degreesRotate + 1
-      ,  splatterList = (Deque.mapToDeque (growSplat model) model.splatterList)}
+      degreesRotate = newDegreesRotate + 1
+      ,  splatterList = (Deque.mapToDeque (growSplat model) model.splatterList)
+      , toRerender = Nothing
+      }
 
       -- generate a cmd
       , if model.explode then
@@ -211,13 +218,9 @@ update msg model =
         -- dump the already-existing shapes:
         newModel = clearShapes model
       in
-      ( { count = newModel.count, viewport = newModel.viewport
-      , clickList = newModel.clickList, splatterList = newModel.splatterList
-      , colorList = newModel.colorList, isDripping = newModel.isDripping
-      , isRotating = newModel.isRotating, degreesRotate = newModel.degreesRotate
-      , explode = newModel.explode
+      ( { model |
       -- These two settings change:
-      , plainCircles = not newModel.plainCircles
+      plainCircles = not newModel.plainCircles
       , raysInsteadOfBlobs = False
       }, Cmd.none)
 
@@ -288,7 +291,8 @@ update msg model =
     -- Erase commands: Take advantage of the power of deques. User can erase one splatter, either the
     -- oldest or the newest created one.
     EraseNewest ->
-      ({ model | splatterList = 
+      ({ model | toRerender = Deque.peekBack model.splatterList 
+      , splatterList = 
         case Deque.removeBack model.splatterList of
           Just deq -> deq
           Nothing -> Deque.empty
@@ -296,8 +300,9 @@ update msg model =
       , Cmd.none)
 
     EraseOldest ->
-      ({ model | splatterList = 
-        case Deque.removeFront model.splatterList  of
+      ({ model | toRerender = Deque.peekFront model.splatterList
+      , splatterList = 
+        case Deque.removeFront model.splatterList of
           Just deq -> deq
           Nothing -> Deque.empty
       }    
@@ -483,10 +488,21 @@ view model =
 
       -- Produce our shapes. Or, if the list is emptied, clear the canvas.
       ourShapes = 
-        if (Deque.isEmpty model.splatterList) then 
+        if (Deque.isEmpty model.splatterList) then
           [Canvas.clear (0, 0) (toFloat (canvasWidth width)) (toFloat (canvasHeight height))]
         else 
-          Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList model.colorList)
+          case model.toRerender of
+            Just removeMe ->
+              [Canvas.shapes [fill Color.white, stroke Color.white] (placeOneSplatter model removeMe)]
+            Nothing ->
+              {--if (Deque.length model.colorList) == 1 then
+                case Deque.peekFront model.colorList of
+                  Just onlyCol ->
+                    Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList (Deque.repeat (Deque.length model.splatterList) onlyCol))
+                  Nothing ->
+                    Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList model.colorList)
+                else--}
+              Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList model.colorList)
 
 
       -- Custom button text
