@@ -495,13 +495,13 @@ view model =
             Just removeMe ->
               [Canvas.shapes [fill Color.white, stroke Color.white] (placeOneSplatter model removeMe)]
             Nothing ->
-              {--if (Deque.length model.colorList) == 1 then
+              if ((Deque.length model.colorList) == 1) && ((Deque.length model.splatterList) > 1) then
                 case Deque.peekFront model.colorList of
                   Just onlyCol ->
                     Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList (Deque.repeat (Deque.length model.splatterList) onlyCol))
                   Nothing ->
                     Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList model.colorList)
-                else--}
+                else
               Deque.squishToList (Deque.map2ToDeque (placeSplatter model) model.splatterList model.colorList)
 
 

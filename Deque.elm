@@ -161,7 +161,8 @@ repeat i elt =
   let
     repeat_ : Int -> Deque a -> Deque a
     repeat_ i_ currD =
-      repeat_ (i_ - 1) (addFront elt currD)
+      if i_ <= 0 then currD
+      else repeat_ (i_ - 1) (addFront elt currD)
   in
     repeat_ i empty
 
