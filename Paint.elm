@@ -1,22 +1,19 @@
 module Paint exposing (main)
 
 ----------------------------------------------------
--- Our notes: (delete before turning in)
--- elm make Paint.elm --output=Paint.js
-----------------------------------------------------
--- Citations: (Include in project write-up and in code)
+{-- Citations: (Include in project write-up and in code)
 
-{-- Loosely referenced elm-canvas started code: https://ellie-app.com/62Dy7vxsBHZa1,
-    which was linked from the Canvas documentation --}
-
-{-- Learned how to update viewport from 
-    https://discourse.elm-lang.org/t/browser-dom-getviewport-return-value/1990/2 --}
-
+- Loosely referenced elm-canvas started code: https://ellie-app.com/62Dy7vxsBHZa1,
+  which was linked from the Canvas documentation
+- Learned how to update viewport from 
+  https://discourse.elm-lang.org/t/browser-dom-getviewport-return-value/1990/2 --}
 ----------------------------------------------------
 -- Imports
 
--- our file
+-- Our files
 import AllBlobs exposing (..)
+
+{-- Based off of hw7, and we also added many new functions to the Deque module --}
 import Deque exposing (..)
 
 -- added by us:
@@ -29,17 +26,10 @@ import Browser.Dom exposing (Viewport)
 import Browser.Events exposing (onAnimationFrameDelta, onMouseDown)
 import Canvas exposing (rect, shapes, circle, Renderable, Point, Shape)
 import Canvas.Settings exposing (fill, stroke, Setting)
-import Canvas.Settings.Advanced exposing (rotate, transform
-  , translate, GlobalCompositeOperationMode(..), compositeOperationMode)
 import Color
 import Html exposing (Html, div, button, text)
 import Html.Events
 import Html.Attributes exposing (style)
-import Array
---import Element exposing (text)
-import Element
-import Element.Background as Background
-import Element.Input as Input
 ---------------------------------------------------------
 -- Types
 
@@ -465,8 +455,13 @@ view model =
           [Canvas.clear (0, 0) (toFloat (canvasWidth width)) (toFloat (canvasHeight height))]
         else 
           case model.toRerender of
+            -- If this is set, there is something new to erase.
             Just removeMe ->
-              [Canvas.shapes [fill Color.white, stroke Color.white] (placeOneSplatter model removeMe)]
+              let
+                -- Increment border, so that it erases cleanly without leaving a ghost border behind
+                removeMeSlightlyLargerBorder = {removeMe | currRadius = removeMe.currRadius + 5}
+              in
+              [Canvas.shapes [fill Color.white, stroke Color.white] (placeOneSplatter model removeMeSlightlyLargerBorder)]
             Nothing ->
 
               -- If there is only one color so far, but multiple splatters, we need to repeat
