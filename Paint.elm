@@ -113,7 +113,7 @@ init () =
     , clickList = Deque.empty
     , splatterList = Deque.empty
     , colorList = Deque.empty
-    , isDripping = False
+    , isDripping = True
     , isActuallyDripping = False
     , plainCircles = False
     , raysInsteadOfBlobs = False
@@ -176,6 +176,8 @@ update msg model =
         -- These two things change:
       splatterList = (Deque.mapToDeque (growSplat model) model.splatterList)
       , toRerender = Nothing
+      , isDripping = (not model.isDripping)
+      , isActuallyDripping = model.isDripping && model.isActuallyDripping
       }
 
       -- generate a cmd
@@ -452,8 +454,8 @@ view model =
       textcolor = style "color" "white"
       noborder = style "border" "0px solid rgba(0,250,200,1)"
       w = style "width" "200px"
-      h = style "height" "63px"--"80px"
-      h2 = style "height" "37px"
+      h = style "height" "49px"
+      h2 = style "height" "32px"
       fontsize = style "font" "Comic sans MS"
       otherbackground = style "backgroundColor" "rgba(0, 0, 0, 0)"
 
@@ -522,7 +524,7 @@ view model =
           [ viewPreview "https://davinstudios.com/sitebuilder/images/Original_Splash_With_Drips_10-31-16-642x209.png" 
           , Html.p [fontsize, othercolor] [text "Your final mix:"]
           , Html.p [fontsize, othercolor] [text currentColorMix]
-          , text ("len splatterList: " ++ Debug.toString (List.length (Deque.squishToList model.splatterList)))
+          --, text ("len splatterList: " ++ Debug.toString (List.length (Deque.squishToList model.splatterList)))
           , button [fontsize, noborder, h, w, textcolor, r, Html.Events.onClick (PickColor Color.red)] [ text "Red" ]
           , button [noborder, h, w, textcolor,o, Html.Events.onClick (PickColor Color.orange)] [ text "Orange" ]
           , button [noborder, h, w, textcolor,y, Html.Events.onClick (PickColor Color.yellow)] [ text "Yellow" ]
